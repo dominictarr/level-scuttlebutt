@@ -48,27 +48,33 @@ module.exports = function (id, prefix) {
       }])
     }
 
-    db.scuttlebutt = function (doc_id) {
-      var emitter = new EventEmitter()
+    db.scuttlebutt = function (doc_id, scuttlebutt) {
+      var emitter = scuttlebutt || new EventEmitter()
 
-      emitter.update = function (value) {
-        var ts = timestamp()
+      //currently used for testing...
+      if(!scuttlebutt)
+        emitter.update = function (value) {
+          emitter.emit('_update', [value, timestamp(), id])
+        }
+
+      emitter.on('_update', function (update) {
+        var value  = update[0]
+        var ts     = update[1]
+        var id     = update[2]
         //write the update twice, 
         //the first time, to store the document.
         insertBatch (id, doc_id, ts, value)
-      }
+      })
 
       return emitter
     }
 
     db.scuttlebutt.createStream = function (opts) {
       opts = opts || {}
-      console.log(opts)
       var yourClock, myClock
       var d = duplex ()
       var outer = REDIS.serialize(d)
       d.on('_data', function (data) {
-        console.log('_data', data.length)
         if(data.length === 1) {
           //like a telephone, say
           if(''+data[0] === 'BYE') {
@@ -90,11 +96,10 @@ module.exports = function (id, prefix) {
           //can avoid updating the model twice when recieving 
           var id = ''+data[0]
           var ts = Number(''+data[1])
-          console.log('WRITE', myClock[id], ts , myClock[id] < ts)
+
           if(!myClock || !myClock[id] || myClock[id] < ts) {
             var doc_id = data[2]
             var value = data[3]
-            console.log('WRITE', id, ts, ''+data)
         
             insertBatch(id, doc_id, ts, value)
             myClock[id] = ts
@@ -131,21 +136,16 @@ module.exports = function (id, prefix) {
           .on('data', function (data) {
             var ary = (''+data.key).split('~').pop().split(SEP)
             ary.push(data.value)
-            console.log('data!!', ''+ary)
             d._data(ary)
           })
           .once('end', function () {
             if(--started) return
-            if(opts.tail === false) {
-              console.log('end!!!')
-              d._data(['BYE'])
-            }
+            if(opts.tail === false) d._data(['BYE'])
           })
         }
       }
 
       db.scuttlebutt.vectorClock(function (err, clock) {
-        console.log('myClock', clock)
         myClock = clock
         d._data([JSON.stringify(clock)])
         start()
@@ -157,12 +157,14 @@ module.exports = function (id, prefix) {
     //read the vector clock. {id: ts, ...} pairs.
     db.scuttlebutt.vectorClock = function (cb) {
       var clock = {}
-      db.readStream(vector.range())
+      var opts = vector.range()
+      opts.sync = true
+      db.readStream(opts)
         .on('data', function (data) {
           var k = (''+data.key).split('~').pop()
           clock[k] = Number(''+data.value)
         })
-        .on('end', function () {
+        .on('close', function () {
           cb(null, clock)
         })
     }
