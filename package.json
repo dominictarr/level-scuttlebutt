@@ -1,0 +1,28 @@
+{
+  "name": "level-scuttlebutt",
+  "version": "0.0.0",
+  "homepage": "https://github.com/dominictarr/level-scuttlebutt",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/dominictarr/level-scuttlebutt.git"
+  },
+  "dependencies": {
+    "level-hooks": "~1.1.1",
+    "range-bucket": "0.0.2",
+    "monotonic-timestamp": "0.0.7",
+    "node-uuid": "~1.4.0",
+    "duplex": "~1.0.0",
+    "level-live-stream": "~0.0.4",
+    "redis-protocol-stream": "~0.1.2",
+    "rimraf": "~2.0.2"
+  },
+  "devDependencies": {
+    "tape": "0.0.5",
+    "delay-stream": "~0.0.1"
+  },
+  "scripts": {
+    "test": "set -e; for t in test/*.js; do node $t; done"
+  },
+  "author": "'Dominic Tarr' <dominic.tarr@gmail.com> (http://dominictarr.com)",
+  "license": "MIT"
+}
