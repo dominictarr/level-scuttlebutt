@@ -12,13 +12,15 @@
     "monotonic-timestamp": "0.0.7",
     "node-uuid": "~1.4.0",
     "duplex": "~1.0.0",
-    "level-live-stream": "~0.0.4",
+    "level-live-stream": "~0.1.0",
     "redis-protocol-stream": "~0.1.2",
-    "rimraf": "~2.0.2"
+    "rimraf": "~2.0.2",
+    "parse-regexp": "0.0.1"
   },
   "devDependencies": {
     "tape": "0.0.5",
-    "delay-stream": "~0.0.1"
+    "delay-stream": "~0.0.1",
+    "scuttlebutt": "~5.0.0"
   },
   "scripts": {
     "test": "set -e; for t in test/*.js; do node $t; done"
