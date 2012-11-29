@@ -35,10 +35,10 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
 create('/tmp/level-scuttlebutt-test-B', function (err, db) {
   randomData(B = db, 'B', next)
 })
+var z = 2
 
 function next() {
-  if(!(A && B)) return
-
+  if(--z) return
   var streamA = A.scuttlebutt.createStream({tail: false})
   var streamB = B.scuttlebutt.createStream({tail: false})
 
@@ -55,7 +55,7 @@ function next() {
 
   streamB.on('end', function () {
     console.log('END B')
-    A.scuttlebutt.vectorClock(function (err, vec) {
+    B.scuttlebutt.vectorClock(function (err, vec) {
       vecB = vec; next()
     })
   })
