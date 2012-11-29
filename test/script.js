@@ -3,13 +3,13 @@ require('tape')('test', function (t) {
 var levelup = require('levelup')
 var rimraf  = require('rimraf')
 var delay   = require('delay-stream')
+var Model   = require('scuttlebutt/model')
 
 function create(path, cb) {
   rimraf(path, function (err) {
     if(err) return callback(err)
     levelup(path, {createIfMissing: true}, function (err, db) {
       if(err) throw err
-      require('..')(db)
       cb(null, db)
     })
   })
@@ -18,12 +18,18 @@ function create(path, cb) {
 var A, B
 
 function randomData(db, id, cb) {
-  require('..')(id)(db)
+  require('..')(id, {
+    test: function () {
+      return Model()
+    }
+  })(db)
 
   var emitter = db.scuttlebutt('test1')
+  var letters = "ABCDEFGHIJK"
   var l = 5
+
   while(l --> 0)
-    emitter.update('Date: ' + new Date())
+    emitter.set(letters[~~(Math.random()*letters.length)], 'Date: ' + new Date())
 
   setTimeout(cb, 1000)
 }
