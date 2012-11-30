@@ -15,7 +15,7 @@ var SEP = ' '
 
 module.exports = function (id, schema) {
   var prefix = 'rangeDoc' //TEMP
-  var bucket  = Bucket(prefix || 'rangeDoc')
+  var bucket  = Bucket(prefix  || 'rangeDoc')
   var _bucket = Bucket((prefix || 'rangeDoc')+'_R')
   var vector  = Bucket((prefix || 'rangeDoc')+'_V')
   var range   = bucket.range()
@@ -50,12 +50,12 @@ module.exports = function (id, schema) {
     function insertBatch (_id, doc_id, ts, value) {
 
       db.batch([{
-        key: bucket([doc_id, ts, _id].join(SEP)),
+        key: bucket([doc_id, ts, _id]),
         value: value,
         type: 'put'
       }, {
         //the second time, so that documents can be rapidly replicated.
-        key: _bucket([_id, ts, doc_id].join(SEP)),
+        key: _bucket([_id, ts, doc_id]),
         value: value,
         type: 'put'
       }, {
@@ -73,10 +73,12 @@ module.exports = function (id, schema) {
       var emitter = live[doc_id] = match(doc_id)()
       emitter.id = id
 
+      console.log('RANGE', doc_id, bucket.range([doc_id, 0, true], [doc_id, '\xff', true]))
+
       var stream = 
-        db.liveStream(bucket.range([doc_id, 0].join(SEP)))        
+        db.liveStream(bucket.range([doc_id, 0, true], [doc_id, '\xff', true]))
           .on('data', function (data) {
-            var ary    = bucket.parse(data.key).key.split(SEP)
+            var ary    = bucket.parse(data.key).key
             var ts     = Number(ary[1])
             var source = ary[2]
             var value  = JSON.parse(data.value)
@@ -137,23 +139,27 @@ module.exports = function (id, schema) {
 
         var clock = {}
         for(var id in myClock)
-          clock[id] = '0'
+          clock[id] = 0
 
         for(var id in yourClock)
           clock[id] = yourClock[id]
 
         var started = 0
         for(var id in clock) {
-          ;(function () {
 
-            var _id = _bucket.parse(id).key
+          (function (id) {
+
+
+            //var _id = _bucket.parse(id).key
             started ++
-            var _opts = _bucket.range(_id+SEP+clock[id])
+            var _opts = _bucket.range([id, clock[id], true], [id, '\xff', true])
+            
             opts.start = _opts.start; opts.end = _opts.end
-
+            
+            console.log(_opts, [id, clock[id], true])
             var stream = db.liveStream(opts)
               .on('data', function (data) {
-                var ary = _bucket.parse(data.key).key.split(SEP)
+                var ary = _bucket.parse(data.key).key
                 ary.push(data.value)
                 d._data(ary)
               })
@@ -164,7 +170,7 @@ module.exports = function (id, schema) {
 
             d.on('close', stream.destroy.bind(stream))
 
-          })()
+          })(id);
         }
       }
 
