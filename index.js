@@ -3,18 +3,19 @@ var EventEmitter = require('events').EventEmitter
 var timestamp    = require('monotonic-timestamp')
 var uuid         = require('node-uuid')
 var duplex       = require('duplex')
-
-var all          = require('all')
+var parserx      = require('parse-regexp')
 
 var hooks        = require('level-hooks')
 var liveStream   = require('level-live-stream')
 var REDIS        = require('redis-protocol-stream')
 
+//need a seperator that sorts early.
+//use NULL instead?
 var SEP = ' '
 
-module.exports = function (id, prefix) {
-
-  var bucket  = Bucket(prefix  || 'rangeDoc')
+module.exports = function (id, schema) {
+  var prefix = 'rangeDoc' //TEMP
+  var bucket  = Bucket(prefix || 'rangeDoc')
   var _bucket = Bucket((prefix || 'rangeDoc')+'_R')
   var vector  = Bucket((prefix || 'rangeDoc')+'_V')
   var range   = bucket.range()
@@ -27,11 +28,27 @@ module.exports = function (id, prefix) {
     hooks()(db)
     liveStream(db)
 
+    var rules = [], live = []
+
+    for (var p in schema) {
+      rules.push({rx: parserx(p) || p, fn: schema[p]})
+    }
+
+    function match (key) {
+      for (var i in rules) {
+        var r = rules[i]
+        var m = key.match(r.rx)
+        if(m && m.index === 0)
+          return r.fn
+      }
+    }
+
     //create a new scuttlebutt attachment.
     //a document that is modeled as a range of keys,
     //rather than as a single {key: value} pair
 
     function insertBatch (_id, doc_id, ts, value) {
+
       db.batch([{
         key: bucket([doc_id, ts, _id].join(SEP)),
         value: value,
@@ -46,16 +63,30 @@ module.exports = function (id, prefix) {
         //so that it's easy to recall what are the latest documents are.
         key: vector(_id), value: ''+ts, type: 'put'
       }])
+
     }
 
-    db.scuttlebutt = function (doc_id, scuttlebutt) {
-      var emitter = scuttlebutt || new EventEmitter()
+    db.scuttlebutt = function (doc_id) {
+      if(!doc_id) throw new Error('must provide a doc_id')
+      if(live[doc_id]) return live[doc_id]
 
-      //currently used for testing...
-      if(!scuttlebutt)
-        emitter.update = function (value) {
-          emitter.emit('_update', [value, timestamp(), id])
-        }
+      var emitter = live[doc_id] = match(doc_id)()
+      emitter.id = id
+
+      var stream = 
+        db.liveStream(bucket.range([doc_id, 0].join(SEP)))        
+          .on('data', function (data) {
+            var ary    = bucket.parse(data.key).key.split(SEP)
+            var ts     = Number(ary[1])
+            var source = ary[2]
+            var value  = JSON.parse(data.value)
+            emitter._update([value, ts, source])
+          })
+
+      emitter.once('dispose', function () {
+        delete live[doc_id]
+        stream.destroy()
+      })
 
       emitter.on('_update', function (update) {
         var value  = update[0]
@@ -63,7 +94,8 @@ module.exports = function (id, prefix) {
         var id     = update[2]
         //write the update twice, 
         //the first time, to store the document.
-        insertBatch (id, doc_id, ts, value)
+        //maybe change scuttlebutt so that value is always a string?
+        insertBatch (id, doc_id, ts, JSON.stringify(value))
       })
 
       return emitter
@@ -85,12 +117,6 @@ module.exports = function (id, prefix) {
             start()
           }
         } else {
-          //write these to disk...
-          //should be of form
-          //[id, doc, ts, value] //take the key directly from the db [id, ts, doc] : value ?
-          //expand this to get the other form...
-          //update any open rangeDocs, (they should be listening on a hook?) or on event?
-          
           //maybe increment the clock for this node,
           //so that when we detect that a record has been written,
           //can avoid updating the model twice when recieving 
@@ -108,15 +134,6 @@ module.exports = function (id, prefix) {
       })
       function start() {
         if(!(myClock && yourClock)) return
-        //create streams from {start: _bucket([id, ts].join(SEP))}
-        //and merge them all.
-        //here is a nice opportunity for a QoS merge,
-        //it would merge a bunch a bunch of streams into one stream,
-        //managing the rate of sub streams correctly.
-        //we should merge the streams by ts, so that we are writing the 
-        //history in order.
-        //also, we want to use the snapshot feature, and then the live stream.
-        //TODO make sure that the live stream does not emit puts before reading the file has finished.
 
         var clock = {}
         for(var id in myClock)
@@ -127,21 +144,27 @@ module.exports = function (id, prefix) {
 
         var started = 0
         for(var id in clock) {
-          var _id = id.split('~').pop()
-          started ++
-          var _opts = _bucket.range(_id+SEP+clock[id])
-          opts.start = _opts.start; opts.end = _opts.end
+          ;(function () {
 
-          db.liveStream(opts)
-          .on('data', function (data) {
-            var ary = (''+data.key).split('~').pop().split(SEP)
-            ary.push(data.value)
-            d._data(ary)
-          })
-          .once('end', function () {
-            if(--started) return
-            if(opts.tail === false) d._data(['BYE'])
-          })
+            var _id = _bucket.parse(id).key
+            started ++
+            var _opts = _bucket.range(_id+SEP+clock[id])
+            opts.start = _opts.start; opts.end = _opts.end
+
+            var stream = db.liveStream(opts)
+              .on('data', function (data) {
+                var ary = _bucket.parse(data.key).key.split(SEP)
+                ary.push(data.value)
+                d._data(ary)
+              })
+              .once('end', function () {
+                if(--started) return
+                if(opts.tail === false) d._data(['BYE'])
+              })
+
+            d.on('close', stream.destroy.bind(stream))
+
+          })()
         }
       }
 
@@ -161,7 +184,7 @@ module.exports = function (id, prefix) {
       opts.sync = true
       db.readStream(opts)
         .on('data', function (data) {
-          var k = (''+data.key).split('~').pop()
+          var k = bucket.parse(data.key).key
           clock[k] = Number(''+data.value)
         })
         .on('close', function () {
