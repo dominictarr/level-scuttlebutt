@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "level-hooks": "~1.1.1",
-    "range-bucket": "0.0.2",
+    "range-bucket": "~0.0.3",
     "monotonic-timestamp": "0.0.7",
     "node-uuid": "~1.4.0",
     "duplex": "~1.0.0",
