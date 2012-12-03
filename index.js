@@ -51,13 +51,11 @@ module.exports = function (id, schema) {
 
       db.batch([{
         key: bucket([doc_id, ts, _id]),
-        value: value,
-        type: 'put'
+        value: value, type: 'put'
       }, {
         //the second time, so that documents can be rapidly replicated.
         key: _bucket([_id, ts, doc_id]),
-        value: value,
-        type: 'put'
+        value: value, type: 'put'
       }, {
         //also, update the vector clock for this replication range,
         //so that it's easy to recall what are the latest documents are.
@@ -66,38 +64,65 @@ module.exports = function (id, schema) {
 
     }
 
-    db.scuttlebutt = function (doc_id) {
+    function deleteBatch (_id, doc_id, ts) {
+
+      db.batch([{
+        key: bucket([doc_id, ts, _id]),
+        type: 'del'
+      }, {
+        key: _bucket([_id, ts, doc_id]),
+        type: 'del'
+      }])
+
+    }
+
+    db.scuttlebutt = function (doc_id, callback) {
       if(!doc_id) throw new Error('must provide a doc_id')
-      if(live[doc_id]) return live[doc_id]
+      if(live[doc_id]) {
+        if(callback) callback(null, live[doc_id])
+        return live[doc_id]
+      }
 
       var emitter = live[doc_id] = match(doc_id)()
       emitter.id = id
 
-      console.log('RANGE', doc_id, bucket.range([doc_id, 0, true], [doc_id, '\xff', true]))
-
+      //read current state from db.
       var stream = 
         db.liveStream(bucket.range([doc_id, 0, true], [doc_id, '\xff', true]))
           .on('data', function (data) {
+            //ignore deletes,
+            //deletes must be an update.
+            if(data.type == 'del') return
             var ary    = bucket.parse(data.key).key
             var ts     = Number(ary[1])
             var source = ary[2]
-            var value  = JSON.parse(data.value)
-            emitter._update([value, ts, source])
+            var change  = JSON.parse(data.value)
+            emitter._update([change, ts, source])
           })
+
+      //this scuttlebutt instance is up to date with the db.
+      stream.on('sync', function () {
+        emitter.emit('sync')
+        if(callback) callback(null, emitter)
+      })
 
       emitter.once('dispose', function () {
         delete live[doc_id]
         stream.destroy()
       })
 
+      //write the update twice, 
+      //the first time, to store the document.
+      //maybe change scuttlebutt so that value is always a string?
       emitter.on('_update', function (update) {
-        var value  = update[0]
-        var ts     = update[1]
-        var id     = update[2]
-        //write the update twice, 
-        //the first time, to store the document.
-        //maybe change scuttlebutt so that value is always a string?
+        var value = update[0], ts = update[1], id = update[2]
         insertBatch (id, doc_id, ts, JSON.stringify(value))
+      })
+
+      //an update is now no longer significant
+      emitter.on('_remove', function (update) {
+        var ts = update[1], id = update[2]
+        deleteBatch (id, doc_id, ts)
       })
 
       return emitter
@@ -149,14 +174,14 @@ module.exports = function (id, schema) {
 
           (function (id) {
 
-
             //var _id = _bucket.parse(id).key
             started ++
             var _opts = _bucket.range([id, clock[id], true], [id, '\xff', true])
             
             opts.start = _opts.start; opts.end = _opts.end
             
-            console.log(_opts, [id, clock[id], true])
+            //TODO, merge stream that efficiently handles back pressure
+            //when reading from many streams.
             var stream = db.liveStream(opts)
               .on('data', function (data) {
                 var ary = _bucket.parse(data.key).key
@@ -182,6 +207,15 @@ module.exports = function (id, schema) {
 
       return outer
     }
+
+    //==============================================================
+    //on update ... possibly run a map...
+    //but the map might be async.
+    //so, just use a regular job...
+    //AHA! I just need to load it, then pass it to doMap
+    //can pass it straight to doMap({key: key, value: scuttlebutt})
+    //maybe... just define a 
+    //==============================================================
 
     //read the vector clock. {id: ts, ...} pairs.
     db.scuttlebutt.vectorClock = function (cb) {
