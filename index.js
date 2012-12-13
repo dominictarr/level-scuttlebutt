@@ -11,24 +11,27 @@ var REDIS        = require('redis-protocol-stream')
 
 //need a seperator that sorts early.
 //use NULL instead?
+
 var SEP = ' '
+var DEFAULT = 'SCUTTLEBUTT'
 
 module.exports = function (id, schema) {
-  var prefix = 'rangeDoc' //TEMP
-  var bucket  = Bucket(prefix  || 'rangeDoc')
-  var _bucket = Bucket((prefix || 'rangeDoc')+'_R')
-  var vector  = Bucket((prefix || 'rangeDoc')+'_V')
+  var prefix = DEFAULT //TEMP
+  var bucket  = Bucket(prefix  || DEFAULT)
+  var _bucket = Bucket((prefix || DEFAULT)+'_R')
+  var vector  = Bucket((prefix || DEFAULT)+'_V')
   var range   = bucket.range()
+
+  var sources = {}
 
   id = id || uuid()
 
   return function (db) {
-
     if(db.scuttlebutt) return db
     hooks()(db)
     liveStream(db)
 
-    var rules = [], live = []
+    var rules = []
 
     for (var p in schema) {
       rules.push({rx: parserx(p) || p, fn: schema[p]})
@@ -47,8 +50,17 @@ module.exports = function (id, schema) {
     //a document that is modeled as a range of keys,
     //rather than as a single {key: value} pair
 
+    function checkOld (id, ts) {
+      if(sources[id] && sources[id] >= ts) return true
+      sources[id] = ts
+    }
+
     function insertBatch (_id, doc_id, ts, value) {
 
+      if(checkOld(_id, ts)) return
+
+      console.log('insert', [_id, doc_id, ts, value])
+      
       db.batch([{
         key: bucket([doc_id, ts, _id]),
         value: value, type: 'put'
@@ -76,38 +88,49 @@ module.exports = function (id, schema) {
 
     }
 
-    db.scuttlebutt = function (doc_id, callback) {
-      if(!doc_id) throw new Error('must provide a doc_id')
-      if(live[doc_id]) {
-        if(callback) callback(null, live[doc_id])
-        return live[doc_id]
-      }
+    db.scuttlebutt = function (doc_id, tail, callback) {
+      if('function' === typeof tail) callback = tail, tail = true
 
-      var emitter = live[doc_id] = match(doc_id)()
+      if(!doc_id) throw new Error('must provide a doc_id')
+
+      var emitter = match(doc_id)()
       emitter.id = id
 
       //read current state from db.
+      var opts = bucket.range([doc_id, 0, true], [doc_id, '\xff', true])
+      opts.tail = tail
+
       var stream = 
-        db.liveStream(bucket.range([doc_id, 0, true], [doc_id, '\xff', true]))
+        db.liveStream(opts)
           .on('data', function (data) {
             //ignore deletes,
             //deletes must be an update.
             if(data.type == 'del') return
+
             var ary    = bucket.parse(data.key).key
             var ts     = Number(ary[1])
             var source = ary[2]
             var change  = JSON.parse(data.value)
+
+            checkOld(source, ts)
+
             emitter._update([change, ts, source])
           })
 
       //this scuttlebutt instance is up to date with the db.
-      stream.on('sync', function () {
+      
+      var ready = false
+      function onReady () {
+        if(ready) return
+        ready = true
         emitter.emit('sync')
         if(callback) callback(null, emitter)
-      })
+      }
+
+      stream.once('sync', onReady)
+      stream.once('end' , onReady)
 
       emitter.once('dispose', function () {
-        delete live[doc_id]
         stream.destroy()
       })
 
@@ -124,8 +147,6 @@ module.exports = function (id, schema) {
         var ts = update[1], id = update[2]
         deleteBatch (id, doc_id, ts)
       })
-
-      return emitter
     }
 
     db.scuttlebutt.createStream = function (opts) {
@@ -159,6 +180,7 @@ module.exports = function (id, schema) {
           }
         }
       })
+
       function start() {
         if(!(myClock && yourClock)) return
 
