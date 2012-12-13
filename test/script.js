@@ -24,14 +24,16 @@ function randomData(db, id, cb) {
     }
   })(db)
 
-  var emitter = db.scuttlebutt('test1')
-  var letters = "ABCDEFGHIJK"
-  var l = 5
+  db.scuttlebutt('test1', function (err, emitter) {
+    var letters = "ABCDEFGHIJK"
+    var l = 5
 
-  while(l --> 0)
-    emitter.set(letters[~~(Math.random()*letters.length)], 'Date: ' + new Date())
+    while(l --> 0)
+      emitter.set(letters[~~(Math.random()*letters.length)], 'Date: ' + new Date())
 
-  setTimeout(cb, 1000)
+    setTimeout(cb, 1000)
+
+  })
 }
 
 create('/tmp/level-scuttlebutt-test-A', function (err, db) {
