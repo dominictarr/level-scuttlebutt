@@ -1,8 +1,7 @@
 
 var levelup     = require('levelup')
 var Model       = require('scuttlebutt/model')
-var Bucket      = require('range-bucket')
-var delayJob    = require('./delay-job')
+var assert      = require('assert')
 
 var scuttlebutt = require('..')('THIS', {
   test: function () {
@@ -10,42 +9,23 @@ var scuttlebutt = require('..')('THIS', {
   }
 })
 
-var map         = require('level-map')
-var reduce      = require('level-reduce')
+require('tape')('scuttlebutt: map-reduce', function (t) {
 
 levelup('/tmp/level-scuttlebutt-example', 
   {createIfMissing: true}, function (err, db) {
   
   scuttlebutt(db)
-  map(db)
-  reduce(db)
 
-  var range = Bucket('SCUTTLEBUTT').range()
+  var range = db.scuttlebutt.range
 
-  db.map.add({
+  db.scuttlebutt.addMapReduce({
     name: 'test',
-    start: range.start,
-    end:   range.end,
-    keyMap: function (data) {
-      var d = data.key.toString().split('\0')
-      d.pop();d.pop()
-      return d.pop()
-    },
-    load: delayJob(function (name, cb) {
-      db.scuttlebutt(name, false, function (err, s) {
-        cb(null, s)
-      })
-    }, 1000),
+    depth: 1,
     map: function (key, model, emit) {
       if(!model) return
       emit('square', Math.pow(Number(model.get('number')), 2))
       emit('cube', Math.pow(Number(model.get('number')), 3))
-    }
-  })
-
-  db.reduce.add({
-    name: 'test',
-    depth: 1,
+    },
     reduce: function (sum, n) {
       return Number(sum) + Number(n)
     },
@@ -54,7 +34,6 @@ levelup('/tmp/level-scuttlebutt-example',
 
   'abcde'.split('').forEach(function (e, i) {
     db.scuttlebutt('test-'+e, false, function (err, t) {
-      console.log('LOAD', t)
       t.set('number', i)
       setTimeout(function () {
         var l = 10
@@ -68,8 +47,27 @@ levelup('/tmp/level-scuttlebutt-example',
     })
   })
 
+  var sq, cu
+
   db.on('reduce:test', function (group, sum) {
-    console.log('r', group, sum)
-//    var t = db.scuttlebutt('test-a')  
+    console.log('r', [group, sum])
+    try {
+      assert.deepEqual([['square'], 120], [group, sum])
+      console.log('sq')
+      sq = true
+      t.ok(true, "eventually ['square']: 120")
+    } catch (_) { }
+
+    try {
+      assert.deepEqual([['cube'], 800], [group, sum])
+      console.log('cu')
+      cu = true
+      t.ok(true, "eventually ['cube']: 800")
+    } catch (_) { }
+
+    if(sq && cu)
+      t.end()
   })
+})
+
 })
