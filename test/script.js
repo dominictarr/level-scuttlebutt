@@ -55,14 +55,12 @@ function next() {
   var n = 2, vecA, vecB
 
   streamA.on('end', function () {
-    console.log('END A')
     A.scuttlebutt.vectorClock(function (err, vec) {
       vecA = vec; next()
     })
   })
 
   streamB.on('end', function () {
-    console.log('END B')
     B.scuttlebutt.vectorClock(function (err, vec) {
       vecB = vec; next()
     })
