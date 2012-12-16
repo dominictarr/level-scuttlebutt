@@ -15,7 +15,8 @@
     "level-live-stream": "~0.1.0",
     "redis-protocol-stream": "~0.1.2",
     "rimraf": "~2.0.2",
-    "parse-regexp": "0.0.1"
+    "parse-regexp": "0.0.1",
+    "scuttlebutt-schema": "~0.0.1"
   },
   "devDependencies": {
     "tape": "0.0.5",

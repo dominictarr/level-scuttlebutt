@@ -3,11 +3,12 @@ var EventEmitter = require('events').EventEmitter
 var timestamp    = require('monotonic-timestamp')
 var uuid         = require('node-uuid')
 var duplex       = require('duplex')
-var parserx      = require('parse-regexp')
 
 var hooks        = require('level-hooks')
 var liveStream   = require('level-live-stream')
 var REDIS        = require('redis-protocol-stream')
+
+var makeSchema   = require('scuttlebutt-schema')
 
 //need a seperator that sorts early.
 //use NULL instead?
@@ -16,7 +17,7 @@ var SEP = ' '
 var DEFAULT = 'SCUTTLEBUTT'
 
 module.exports = function (id, schema) {
-  var prefix = DEFAULT //TEMP
+  var prefix  = DEFAULT //TEMP
   var bucket  = Bucket(prefix  || DEFAULT)
   var _bucket = Bucket((prefix || DEFAULT)+'_R')
   var vector  = Bucket((prefix || DEFAULT)+'_V')
@@ -31,20 +32,7 @@ module.exports = function (id, schema) {
     hooks()(db)
     liveStream(db)
 
-    var rules = []
-
-    for (var p in schema) {
-      rules.push({rx: parserx(p) || p, fn: schema[p]})
-    }
-
-    function match (key) {
-      for (var i in rules) {
-        var r = rules[i]
-        var m = key.match(r.rx)
-        if(m && m.index === 0)
-          return r.fn
-      }
-    }
+    var match = makeSchema(schema)
 
     //create a new scuttlebutt attachment.
     //a document that is modeled as a range of keys,
@@ -59,8 +47,6 @@ module.exports = function (id, schema) {
 
       if(checkOld(_id, ts)) return
 
-      console.log('insert', [_id, doc_id, ts, value])
-      
       db.batch([{
         key: bucket([doc_id, ts, _id]),
         value: value, type: 'put'
@@ -94,7 +80,9 @@ module.exports = function (id, schema) {
       if(!doc_id) throw new Error('must provide a doc_id')
 
       var emitter = match(doc_id)()
-      emitter.id = id
+
+      if(emitter.setId) emitter.setId(id)
+      else              emitter.id = id
 
       //read current state from db.
       var opts = bucket.range([doc_id, 0, true], [doc_id, '\xff', true])
