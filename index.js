@@ -10,6 +10,8 @@ var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('scuttlebutt-schema')
 
+var sbMapReduce  = require('./map')
+
 //need a seperator that sorts early.
 //use NULL instead?
 
@@ -218,14 +220,13 @@ module.exports = function (id, schema) {
       return outer
     }
 
-    //==============================================================
-    //on update ... possibly run a map...
-    //but the map might be async.
-    //so, just use a regular job...
-    //AHA! I just need to load it, then pass it to doMap
-    //can pass it straight to doMap({key: key, value: scuttlebutt})
-    //maybe... just define a 
-    //==============================================================
+    //we need a special map-reduce for scuttlebutt objects,
+    //because scuttlebutt is represented as a range of keys
+    //rather than a single object.
+
+    db.scuttlebutt.range = range
+
+    sbMapReduce(db)
 
     //read the vector clock. {id: ts, ...} pairs.
     db.scuttlebutt.vectorClock = function (cb) {
