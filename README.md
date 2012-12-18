@@ -1,5 +1,15 @@
 # level-scuttlebutt
 
+Plugin to add persist and query [scuttlebutt](https://github.com/scuttlebutt) documents
+stored in leveldb.
+
+Instead of representing an object as a single document, scuttlebutt represents a document as
+a series of immutable transactions. The 'document' is modified by appending a new transaction.
+Old transactions that are no longer relevant can be cleaned up, but you can never modify a
+transaction in place. Turns out, that leveldb (a log-structured merge tree) is optimized for 
+exactly this sort of data.
+
+
 
 range based documents.
 
