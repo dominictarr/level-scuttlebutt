@@ -5,7 +5,6 @@ var uuid         = require('node-uuid')
 var duplex       = require('duplex')
 
 var hooks        = require('level-hooks')
-var liveStream   = require('level-live-stream')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('scuttlebutt-schema')
@@ -32,7 +31,6 @@ module.exports = function (id, schema) {
   return function (db) {
     if(db.scuttlebutt) return db
     hooks()(db)
-    liveStream(db)
 
     var match = makeSchema(schema)
 
