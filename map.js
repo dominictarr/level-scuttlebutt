@@ -1,4 +1,3 @@
-var delayJob  = require('./delay-job')
 var mapReduce = require('map-reduce')
 
 function merge (a, b) {
@@ -25,11 +24,11 @@ module.exports = function (db) {
         d.pop();d.pop()
         return d.pop()
       },
-      load: delayJob(function (name, cb) {
+      load: function (name, cb) {
         db.scuttlebutt(name, false, function (err, s) {
           cb(null, s)
         })
-      }, 1000)
+      }
       //the user should pass in map, and/or reduce
     }, opts)
     
