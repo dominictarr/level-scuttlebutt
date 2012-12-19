@@ -9,13 +9,13 @@
   "dependencies": {
     "level-hooks": "~1.1.2",
     "range-bucket": "~0.0.3",
-    "monotonic-timestamp": "0.0.7",
+    "monotonic-timestamp": "~0.0.7",
     "node-uuid": "~1.4.0",
     "duplex": "~1.0.0",
     "redis-protocol-stream": "~0.1.2",
     "rimraf": "~2.0.2",
-    "parse-regexp": "0.0.1",
-    "scuttlebutt-schema": "~0.0.1",
+    "parse-regexp": "~0.0.1",
+    "scuttlebutt-schema": "~0.0.2",
     "map-reduce": "~2.1"
   },
   "devDependencies": {
