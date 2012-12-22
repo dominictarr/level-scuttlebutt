@@ -17,7 +17,7 @@ var sbMapReduce  = require('./map')
 var SEP = ' '
 var DEFAULT = 'SCUTTLEBUTT'
 
-module.exports = function (id, schema) {
+module.exports = function (db, id, schema) {
   var prefix  = DEFAULT //TEMP
   var bucket  = Bucket(prefix  || DEFAULT)
   var _bucket = Bucket((prefix || DEFAULT)+'_R')
@@ -28,7 +28,7 @@ module.exports = function (id, schema) {
 
   id = id || uuid()
 
-  return function (db) {
+//  return function (db) {
     if(db.scuttlebutt) return db
     hooks()(db)
 
@@ -240,5 +240,5 @@ module.exports = function (id, schema) {
           cb(null, clock)
         })
     }
-  }
+  //}
 }
