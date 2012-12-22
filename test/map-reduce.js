@@ -3,18 +3,22 @@ var levelup     = require('levelup')
 var Model       = require('scuttlebutt/model')
 var assert      = require('assert')
 
-var scuttlebutt = require('..')('THIS', {
+var scuttlebutt = require('..')/*('THIS', {
   test: function () {
     return new Model()
   }
-})
+})*/
 
 require('tape')('scuttlebutt: map-reduce', function (t) {
 
 levelup('/tmp/level-scuttlebutt-example', 
   {createIfMissing: true}, function (err, db) {
   
-  scuttlebutt(db)
+  scuttlebutt(db, 'THIS', {
+    test: function () {
+      return new Model()
+    }
+  })
 
   var range = db.scuttlebutt.range
 

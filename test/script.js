@@ -18,11 +18,11 @@ function create(path, cb) {
 var A, B
 
 function randomData(db, id, cb) {
-  require('..')(id, {
+  require('..')(db, id, {
     test: function () {
       return Model()
     }
-  })(db)
+  })
 
   db.scuttlebutt('test1', function (err, emitter) {
     var letters = "ABCDEFGHIJK"
