@@ -79,7 +79,7 @@ module.exports = function (db, id, schema) {
 
       if(!doc_id) throw new Error('must provide a doc_id')
 
-      var emitter = match(doc_id)()
+      var emitter = match(doc_id)
 
       if(emitter.setId) emitter.setId(id)
       else              emitter.id = id
