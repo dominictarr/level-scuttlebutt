@@ -34,9 +34,15 @@ levelup(DB_FILE, {createIfMissing: true}, function (err, db){
     //now is a good time to customize the scuttlebutt instance.
   })
 
-  db.scuttlebutt.addMapReduce(function (key, model, emit) {
-    
+  //see below...
+  db.scuttlebutt.addMapReduce(mapReduceOptions)
+
+  //open a scuttlebutt instance by name.
+  db.scuttlebutt.open(name, function (err, model) {
+    model.on('change:key', console.log) //...
+    model.set('key', value)
   })
+
 })
 ```
 
