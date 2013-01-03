@@ -137,6 +137,8 @@ module.exports = function (db, id, schema) {
       })
     }
 
+    db.scuttlebutt.open = db.scuttlebutt
+
     db.scuttlebutt.createStream = function (opts) {
       opts = opts || {}
       var yourClock, myClock
