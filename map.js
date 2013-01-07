@@ -27,13 +27,12 @@ module.exports = function (db) {
       load: function (name, cb) {
         db.scuttlebutt(name, false, function (err, s) {
           cb(null, s)
+          s.dispose()
         })
       }
       //the user should pass in map, and/or reduce
     }, opts)
     
     db.mapReduce.add(opts)
-
   }
-
 }
