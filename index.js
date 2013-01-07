@@ -83,7 +83,7 @@ module.exports = function (db, id, schema) {
       emitter = match(doc_id)
       if(!emitter) {
         var err = new Error('no schema for:' + doc_id)
-        if(cb) return cb(err)
+        if(callback) return callback(err)
         throw err
       }
     }
