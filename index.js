@@ -8,7 +8,7 @@ var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('scuttlebutt-schema')
-
+var cache        = makeSchema.cache
 var sbMapReduce  = require('./map')
 
 //need a seperator that sorts early.
@@ -56,6 +56,7 @@ module.exports = function (db, id, schema) {
     }, {
       //also, update the vector clock for this replication range,
       //so that it's easy to recall what are the latest documents are.
+      //this vector clock is for all the documents, not just this one...
       key: vector(_id), value: ''+ts, type: 'put'
     }])
 
@@ -73,15 +74,33 @@ module.exports = function (db, id, schema) {
 
   }
 
-  db.scuttlebutt = function (doc_id, tail, callback) {
+  db.scuttlebutt = cache(function (doc_id, tail, callback) {
     if('function' === typeof tail) callback = tail, tail = true
 
     if(!doc_id) throw new Error('must provide a doc_id')
-
-    var emitter = match(doc_id)
-
+    var emitter
+    if('string' === typeof doc_id) {
+      emitter = match(doc_id)
+      if(!emitter) {
+        var err = new Error('no schema for:' + doc_id)
+        if(cb) return cb(err)
+        throw err
+      }
+    }
+    else {
+      emitter = doc_id
+      doc_id = emitter.name
+    }
+      
     if(emitter.setId) emitter.setId(id)
     else              emitter.id = id
+
+    //if we are counting streams to know when to disconnect,
+    //but we want to keep this instance alive while we are disconnected,
+    //we'll need to track this a different way...
+    //it would be better to not count the 'HOME' stream, 
+    //and then dispose when the clone streams get it 0.
+    emitter._streams ++
 
     //read current state from db.
     var opts = bucket.range([doc_id, 0, true], [doc_id, '\xff', true])
@@ -134,7 +153,9 @@ module.exports = function (db, id, schema) {
       var ts = update[1], id = update[2]
       deleteBatch (id, doc_id, ts)
     })
-  }
+
+    return emitter
+  })
 
   db.scuttlebutt.open = db.scuttlebutt
 
@@ -218,10 +239,6 @@ module.exports = function (db, id, schema) {
 
     return outer
   }
-
-  //we need a special map-reduce for scuttlebutt objects,
-  //because scuttlebutt is represented as a range of keys
-  //rather than a single object.
 
   db.scuttlebutt.range = range
 
