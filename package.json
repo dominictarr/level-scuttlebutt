@@ -21,8 +21,7 @@
   "devDependencies": {
     "tape": "0.0.5",
     "delay-stream": "~0.0.1",
-    "scuttlebutt": "~5.0.0",
-    "level-reduce": "0.0.2",
+    "scuttlebutt": "~5.5",
     "levelup": "~0.4.1"
   },
   "scripts": {
