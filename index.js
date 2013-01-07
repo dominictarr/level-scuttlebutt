@@ -26,6 +26,9 @@ module.exports = function (db, id, schema) {
 
   var sources = {}
 
+  if('string' !== typeof id)
+    schema = id, id = null
+
   id = id || uuid()
 
   if(db.scuttlebutt) return db
