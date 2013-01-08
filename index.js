@@ -8,7 +8,7 @@ var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('scuttlebutt-schema')
-//var cache        = makeSchema.cache
+var cache        = makeSchema.cache
 var sbMapReduce  = require('./map')
 
 //need a seperator that sorts early.
@@ -97,7 +97,7 @@ module.exports = function (db, id, schema) {
 
   }
 
-  db.scuttlebutt = function (doc_id, tail, callback) {
+  db.scuttlebutt = cache(function (doc_id, tail, callback) {
     if('function' === typeof tail) callback = tail, tail = true
 
     if(!doc_id) throw new Error('must provide a doc_id')
@@ -196,7 +196,7 @@ module.exports = function (db, id, schema) {
     })
 
     return emitter
-  }
+  })
 
   db.scuttlebutt.open = db.scuttlebutt
 
