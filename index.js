@@ -8,7 +8,7 @@ var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('scuttlebutt-schema')
-var cache        = makeSchema.cache
+//var cache        = makeSchema.cache
 var sbMapReduce  = require('./map')
 
 //need a seperator that sorts early.
@@ -45,39 +45,59 @@ module.exports = function (db, id, schema) {
     sources[id] = ts
   }
 
+  var _batch = [], queued = false
+
+  function save() {
+    if(!queued)
+      process.nextTick(function () {
+        queued = false
+        db.batch(_batch)
+        _batch = []
+      })
+    queued = true
+  }
+
   function insertBatch (_id, doc_id, ts, value) {
 
     if(checkOld(_id, ts)) return
 
-    db.batch([{
+    _batch.push({
       key: bucket([doc_id, ts, _id]),
       value: value, type: 'put'
-    }, {
+    })
+
+    _batch.push({
       //the second time, so that documents can be rapidly replicated.
       key: _bucket([_id, ts, doc_id]),
       value: value, type: 'put'
-    }, {
+    })
+
+    _batch.push({
       //also, update the vector clock for this replication range,
       //so that it's easy to recall what are the latest documents are.
       //this vector clock is for all the documents, not just this one...
       key: vector(_id), value: ''+ts, type: 'put'
-    }])
+    })
 
+    save()
   }
 
   function deleteBatch (_id, doc_id, ts) {
 
-    db.batch([{
+    _batch.push({
       key: bucket([doc_id, ts, _id]),
       type: 'del'
-    }, {
+    })
+
+    _batch.push({
       key: _bucket([_id, ts, doc_id]),
       type: 'del'
-    }])
+    })
+    save()
 
   }
 
-  db.scuttlebutt = cache(function (doc_id, tail, callback) {
+  db.scuttlebutt = function (doc_id, tail, callback) {
     if('function' === typeof tail) callback = tail, tail = true
 
     if(!doc_id) throw new Error('must provide a doc_id')
@@ -91,6 +111,16 @@ module.exports = function (db, id, schema) {
       }
     }
     else {
+      //okay, in the case that this scuttlebutt has changes that arn't in the database,
+      //just save the whole history?
+      //generally, I will not be resaving documents... so it's unlikely that a fresh scuttlebutt
+      //will have changes - need to handle this case to be correct though...
+      //so, just write the whole history as a single batch?
+
+      //there are two options... write the db to the scuttlebutt,
+      //or write the scuttlebutt to the db.
+
+      //okay, so it's gonna be: write the db to the scuttlebutt...
       emitter = doc_id
       doc_id = emitter.name
     }
@@ -146,10 +176,18 @@ module.exports = function (db, id, schema) {
     //write the update twice, 
     //the first time, to store the document.
     //maybe change scuttlebutt so that value is always a string?
-    emitter.on('_update', function (update) {
+    //If i write a bunch of batches, will they come out in order?
+    //because I think updates are expected in order, or it will break.
+
+    function onUpdate (update) {
       var value = update[0], ts = update[1], id = update[2]
       insertBatch (id, doc_id, ts, JSON.stringify(value))
-    })
+    }
+
+    emitter.history().forEach(onUpdate)
+
+    //track updates...
+    emitter.on('_update', onUpdate)
 
     //an update is now no longer significant
     emitter.on('_remove', function (update) {
@@ -158,7 +196,7 @@ module.exports = function (db, id, schema) {
     })
 
     return emitter
-  })
+  }
 
   db.scuttlebutt.open = db.scuttlebutt
 
