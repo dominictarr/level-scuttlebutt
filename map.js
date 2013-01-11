@@ -34,5 +34,7 @@ module.exports = function (db) {
     }, opts)
     
     db.mapReduce.add(opts)
+
+    return db.scuttlebutt
   }
 }

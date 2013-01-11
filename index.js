@@ -17,24 +17,31 @@ var sbMapReduce  = require('./map')
 var SEP = ' '
 var DEFAULT = 'SCUTTLEBUTT'
 
-module.exports = function (db, id, schema) {
+module.exports = function (db, id, config) {
   var prefix  = DEFAULT //TEMP
   var bucket  = Bucket(prefix  || DEFAULT)
   var _bucket = Bucket((prefix || DEFAULT)+'_R')
   var vector  = Bucket((prefix || DEFAULT)+'_V')
   var range   = bucket.range()
 
-  var sources = {}
+  var sources = {}, schema
 
   if('string' !== typeof id)
-    schema = id, id = null
+    config = id, id = null
 
   id = id || uuid()
 
+  if(!config.schema && !config.views)
+    config = {schema: config}
+
+  if(!config.schema)
+    throw new Error('level-scuttlebutt must be passed a scuttlebutt schema')
+
   if(db.scuttlebutt) return db
+
   hooks()(db)
 
-  var match = makeSchema(schema)
+  var match = makeSchema(config.schema)
 
   //create a new scuttlebutt attachment.
   //a document that is modeled as a range of keys,
@@ -299,4 +306,8 @@ module.exports = function (db, id, schema) {
         cb(null, clock)
       })
   }
+
+  if(config.views)
+    config.views.forEach(db.scuttlebutt.addMapReduce)
+
 }
