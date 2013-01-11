@@ -31,12 +31,6 @@ module.exports = function (db, id, config) {
 
   id = id || uuid()
 
-  if(!config.schema && !config.views)
-    config = {schema: config}
-
-  if(!config.schema)
-    throw new Error('level-scuttlebutt must be passed a scuttlebutt schema')
-
   if(db.scuttlebutt) return db
 
   hooks()(db)
