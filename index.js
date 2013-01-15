@@ -7,9 +7,11 @@ var duplex       = require('duplex')
 var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
-var makeSchema   = require('scuttlebutt-schema')
+var makeSchema   = require('./schema')
 var cache        = makeSchema.cache
 var sbMapReduce  = require('./map')
+
+var Remote       = require('./remote')
 
 //need a seperator that sorts early.
 //use NULL instead?
@@ -17,17 +19,17 @@ var sbMapReduce  = require('./map')
 var SEP = ' '
 var DEFAULT = 'SCUTTLEBUTT'
 
-module.exports = function (db, id, config) {
+module.exports = function (db, id, schema) {
   var prefix  = DEFAULT //TEMP
   var bucket  = Bucket(prefix  || DEFAULT)
   var _bucket = Bucket((prefix || DEFAULT)+'_R')
   var vector  = Bucket((prefix || DEFAULT)+'_V')
   var range   = bucket.range()
 
-  var sources = {}, schema
+  var sources = {}
 
   if('string' !== typeof id)
-    config = id, id = null
+    schema = id, id = null
 
   id = id || uuid()
 
@@ -35,7 +37,7 @@ module.exports = function (db, id, config) {
 
   hooks()(db)
 
-  var match = makeSchema(config.schema)
+  var match = makeSchema(schema)
 
   //create a new scuttlebutt attachment.
   //a document that is modeled as a range of keys,
@@ -98,7 +100,12 @@ module.exports = function (db, id, config) {
 
   }
 
-  db.scuttlebutt = cache(function (doc_id, tail, callback) {
+  db.scuttlebutt = function () {
+    var args = [].slice.call(arguments)
+    return db.scuttlebutt.open.apply(null, args)
+  }
+
+  db.scuttlebutt._open = function (doc_id, tail, callback) {
     if('function' === typeof tail) callback = tail, tail = true
 
     if(!doc_id) throw new Error('must provide a doc_id')
@@ -197,9 +204,7 @@ module.exports = function (db, id, config) {
     })
 
     return emitter
-  })
-
-  db.scuttlebutt.open = db.scuttlebutt
+  }
 
   db.scuttlebutt.createStream = function (opts) {
     opts = opts || {}
@@ -284,6 +289,13 @@ module.exports = function (db, id, config) {
 
   db.scuttlebutt.range = range
 
+  var r = Remote(schema).openDb(db)
+
+  db.scuttlebutt.open = r.open
+  db.scuttlebutt.createRemoteStream = r.createStream
+  //THIS IS BROKE
+  //db.scuttlebutt.view = 
+
   sbMapReduce(db)
 
   //read the vector clock. {id: ts, ...} pairs.
@@ -300,8 +312,5 @@ module.exports = function (db, id, config) {
         cb(null, clock)
       })
   }
-
-  if(config.views)
-    config.views.forEach(db.scuttlebutt.addMapReduce)
 
 }

@@ -27,6 +27,7 @@ require('tape')('scuttlebutt: map-reduce', function (t) {
       depth: 1,
       map: function (key, model, emit) {
         if(!model) return
+        console.log('map', key)
         emit('square', Math.pow(Number(model.get('number')), 2))
         emit('cube', Math.pow(Number(model.get('number')), 3))
       },
@@ -43,8 +44,10 @@ require('tape')('scuttlebutt: map-reduce', function (t) {
           var l = 10
           var int = setInterval(function () {
             t.set('number', i * 2 * l)
-            if(!--l)
+            if(!--l) {
               clearInterval(int)
+            t.dispose()
+          }
           }, 200)
       
         }, 1000)

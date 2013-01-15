@@ -33,7 +33,7 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
   m.set('y', Math.random())
   m.set('z', Math.random())
 
-  db.scuttlebutt(m, function () {
+  db.scuttlebutt._open(m, function () {
     console.log('reopened')
 
     db.scuttlebutt(m.name, function (err, _m) {
