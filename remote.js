@@ -1,8 +1,12 @@
+//this file is in the project root, and not lib,
+//because it's public
+
 var MuxDemux = require('mux-demux')
 var through  = require('through')
 var EventEmitter = require('events').EventEmitter
-var Schema   = require('./schema')
-var Cache    = Schema.cache
+var Schema   = require('./lib/schema')
+var Cache    = require('./lib/cache')
+var Open     = require('./lib/remote-open')
 
 //create a server that can wrap a leveldb.
 //this assumes that the db already has scuttlebutt installed.
@@ -18,7 +22,6 @@ var Cache    = Schema.cache
 //so for now, we are gonna just write the client manually...
 
 //COMBINE into one stream object...
-
 var remote = module.exports = function (schema) {
 
   schema = Schema(schema)
@@ -35,8 +38,8 @@ var remote = module.exports = function (schema) {
   //cache at this level, not on scuttlebutt.open
 
   emitter.open = Cache(schema, function (scuttlebutt, tail, cb) {
-    if('string' === typeof scuttlebutt)
-      throw new Error('expected Scuttlebutt passed in by cache')
+    if('object' !== typeof scuttlebutt)
+      throw new Error('expected Scuttlebutt')
 
     if(!_open)
       return toOpen.push([scuttlebutt, tail, cb])
@@ -145,13 +148,9 @@ var remote = module.exports = function (schema) {
       })
     }
 
-    var clientOpen =
-      require('./schema')
-        .open(schema,
-          function (name) {
-            //where is the messages going?
-            return mx.createStream(''+name) //force to string.
-          })
+    var clientOpen = Open(function (name) {
+          return mx.createStream(name)
+        })
 
     function clientView (name, opts) {
       var args = [].slice.call(arguments)

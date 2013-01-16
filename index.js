@@ -7,10 +7,9 @@ var duplex       = require('duplex')
 var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
-var makeSchema   = require('./schema')
-var cache        = makeSchema.cache
-var sbMapReduce  = require('./map')
-
+var makeSchema   = require('./lib/schema')
+var cache        = require('./lib/cache')
+var sbMapReduce  = require('./lib/map')
 var Remote       = require('./remote')
 
 //need a seperator that sorts early.
@@ -206,7 +205,7 @@ module.exports = function (db, id, schema) {
     return emitter
   }
 
-  db.scuttlebutt.createStream = function (opts) {
+  db.scuttlebutt.createReplicateStream = function (opts) {
     opts = opts || {}
     var yourClock, myClock
     var d = duplex ()

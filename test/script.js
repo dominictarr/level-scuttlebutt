@@ -47,8 +47,8 @@ var z = 2
 
 function next() {
   if(--z) return
-  var streamA = A.scuttlebutt.createStream({tail: false})
-  var streamB = B.scuttlebutt.createStream({tail: false})
+  var streamA = A.scuttlebutt.createReplicateStream({tail: false})
+  var streamB = B.scuttlebutt.createReplicateStream({tail: false})
 
   streamA.pipe(delay(100)).pipe(streamB).pipe(delay(100)).pipe(streamA)
   
