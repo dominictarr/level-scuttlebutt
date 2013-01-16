@@ -4,7 +4,7 @@ var rimraf  = require('rimraf')
 var levelup = require('levelup')
 var Model   = require('scuttlebutt/model')
 var LevelScuttlebutt = require('..')
-var Remote  = require('../remote')
+var Client  = require('../client')
 
 var tape = require('tape')
 
@@ -23,7 +23,7 @@ tape('local open, remote open', function (t) {
     LevelScuttlebutt(db, 'test', schema)
  
     var local  = db.scuttlebutt//Remote(schema).openDb(db)
-    var remote = Remote(schema)
+    var remote = Client(schema)
     var a, b
 
     remote.open('foo1', function (err, _a) {

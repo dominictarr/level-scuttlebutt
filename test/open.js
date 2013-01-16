@@ -4,7 +4,7 @@ var rimraf  = require('rimraf')
 var levelup = require('levelup')
 var Model   = require('scuttlebutt/model')
 var LevelScuttlebutt = require('..')
-var Remote  = require('../remote')
+var Client  = require('../client')
 
 var tape = require('tape')
 
@@ -17,16 +17,18 @@ tape('local open, remote open', function (t) {
     LevelScuttlebutt(db, 'test', schema)
  
     var local  = db.scuttlebutt
-    var remote = Remote(schema)
+    var client = Client(schema)
 
     local.open('test1', function (err, a) {
       if(err) t.fail(err)
+
+      console.log('OPEN')
  
       a.set('x', Math.random())
       a.set('y', Math.random())
       a.set('z', Math.random())
  
-      remote.open('test1', function (err, b) {
+      client.open('test1', function (err, b) {
         t.notStrictEqual(a, b)
         t.deepEqual(b.history(), a.history())
         t.end()
@@ -34,7 +36,7 @@ tape('local open, remote open', function (t) {
     })
  
     var ls = local.createRemoteStream()
-    var rs = remote.createStream()
+    var rs = client.createStream()
 
     rs.on('data', console.log)
     ls.on('data', console.log)
@@ -53,8 +55,8 @@ tape('parallel open', function (t) {
 
     var a,b
 
-    var local  = Remote(schema).openDb(db)
-    var remote = Remote(schema)
+    var local  = db.scuttlebutt
+    var remote = Client(schema)
     local.open('test1', function (err, _a) {
       if(err) t.fail(err)
       a = _a
@@ -92,8 +94,8 @@ tape('remote open, local open', function (t) {
     var schema = {test: Model}
     LevelScuttlebutt(db, 'test', schema)
  
-    var local  = Remote(schema).openDb(db)
-    var remote = Remote(schema)
+    var local  = db.scuttlebutt
+    var remote = Client(schema)
 
     remote.open('test1', function (err, a) {
       if(err) t.fail(err)
@@ -114,7 +116,7 @@ tape('remote open, local open', function (t) {
     var remote = Remote(schema)
  
     var ls = local.createStream()
-    var rs = remote.createStream()
+    var rs = remote.createRemoteStream()
 
     rs.on('data', console.log)
 

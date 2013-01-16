@@ -1,4 +1,4 @@
-require('tape')('test', function (t) {
+require('tape')('test replication', function (t) {
 
 var levelup = require('levelup')
 var rimraf  = require('rimraf')
