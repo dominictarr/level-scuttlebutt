@@ -36,7 +36,8 @@ require('tape')('scuttlebutt: map-reduce', function (t) {
       })
 
       'abcde'.split('').forEach(function (e, i) {
-        db.scuttlebutt('test-'+e, false, function (err, t) {
+        db.scuttlebutt.open('test-'+e, false, function (err, t) {
+          console.log('open')
           t.set('number', i)
           setTimeout(function () {
             var l = 10

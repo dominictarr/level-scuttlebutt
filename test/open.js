@@ -5,21 +5,22 @@ var levelup = require('levelup')
 var Model   = require('scuttlebutt/model')
 var LevelScuttlebutt = require('..')
 var Client  = require('../client')
+var mac     = require('macgyver')().autoValidate()
 
 var tape = require('tape')
 
 tape('local open, remote open', function (t) {
   var path = '/tmp/test-scuttlebutt-remote'
   t.plan(2)
-  rimraf(path, function () {
+  rimraf(path, mac(function () {
     var db = levelup(path, {createIfMissing: true})
     var schema = {test: function () { return new Model} }
-    LevelScuttlebutt(db, 'test', schema)
+    LevelScuttlebutt(db, 'TEST', schema)
  
     var local  = db.scuttlebutt
     var client = Client(schema)
 
-    local.open('test1', function (err, a) {
+    local.open('test1', mac(function (err, a) {
       if(err) t.fail(err)
 
       console.log('OPEN')
@@ -28,12 +29,15 @@ tape('local open, remote open', function (t) {
       a.set('y', Math.random())
       a.set('z', Math.random())
  
-      client.open('test1', function (err, b) {
+
+      client.open('test1', mac(function (err, b) {
+        console.log('client_open', b.name)
+        if(err) t.fail(err)
         t.notStrictEqual(a, b)
         t.deepEqual(b.history(), a.history())
         t.end()
-      })
-    })
+      }).once())
+    }).once())
  
     var ls = local.createRemoteStream()
     var rs = client.createStream()
@@ -42,7 +46,7 @@ tape('local open, remote open', function (t) {
     ls.on('data', console.log)
 
     ls.pipe(rs).pipe(ls)
-  })
+  }).once())
 })
 
 tape('parallel open', function (t) {
@@ -57,7 +61,7 @@ tape('parallel open', function (t) {
 
     var local  = db.scuttlebutt
     var remote = Client(schema)
-    local.open('test1', function (err, _a) {
+    local.open('test1', mac(function (err, _a) {
       if(err) t.fail(err)
       a = _a
  
@@ -66,62 +70,24 @@ tape('parallel open', function (t) {
       a.set('z', Math.random())
 
       if(a && b) next() 
-    })
+    }).once())
 
-    remote.open('test1', function (err, _b) {
+    remote.open('test1', mac(function (err, _b) {
       b = _b
       if(a && b) next()
-    })
+    }).once())
 
     function next () {
+      console.log('END')
       t.notStrictEqual(a, b)
       t.deepEqual(b.history(), a.history())
       t.end()
     }
 
-    var ls = local.createStream()
+    var ls = local.createRemoteStream()
     var rs = remote.createStream()
  
     ls.pipe(rs).pipe(ls)
-  })
-})
-
-tape('remote open, local open', function (t) {
-  var path = '/tmp/test-scuttlebutt-remote3'
-  t.plan(2)
-  rimraf(path, function () {
-    var db = levelup(path, {createIfMissing: true})
-    var schema = {test: Model}
-    LevelScuttlebutt(db, 'test', schema)
- 
-    var local  = db.scuttlebutt
-    var remote = Client(schema)
-
-    remote.open('test1', function (err, a) {
-      if(err) t.fail(err)
- 
-      a.set('x', Math.random())
-      a.set('y', Math.random())
-      a.set('z', Math.random())
- 
-      local.open('test1', function (err, b) {
-        t.notStrictEqual(a, b)
-        console.log(b.history())
-        t.deepEqual(b.history(), a.history())
-        t.end()
-      })
-    })
-
-    var local  = Remote(schema).openDb(db)
-    var remote = Remote(schema)
- 
-    var ls = local.createStream()
-    var rs = remote.createRemoteStream()
-
-    rs.on('data', console.log)
-
-    ls.pipe(rs).pipe(ls)
-
   })
 })
 
