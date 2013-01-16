@@ -10,7 +10,13 @@ var REDIS        = require('redis-protocol-stream')
 var makeSchema   = require('./lib/schema')
 var cache        = require('./lib/cache')
 var sbMapReduce  = require('./lib/map')
-var Remote       = require('./remote')
+
+//var Remote     = require('./remote')
+
+var DbOpener     = require('./lib/db-opener')
+var BufferedOpener
+                 = require('./lib/buffered-opener')
+var ClientOpener = require('./lib/client-opener')
 
 //need a seperator that sorts early.
 //use NULL instead?
@@ -59,7 +65,16 @@ module.exports = function (db, id, schema) {
     queued = true
   }
 
-  function insertBatch (_id, doc_id, ts, value) {
+  db.scuttlebutt = function () {
+    var args = [].slice.call(arguments)
+    return db.scuttlebutt.open.apply(null, args)
+  }
+
+  db.scuttlebutt._checkOld = checkOld
+
+  var insertBatch =
+  db.scuttlebutt._insertBatch = 
+  function (_id, doc_id, ts, value) {
 
     if(checkOld(_id, ts)) return
 
@@ -84,6 +99,10 @@ module.exports = function (db, id, schema) {
     save()
   }
 
+  db.scuttlebutt._bucket = bucket
+
+  var deleteBatch =
+  db.scuttlebutt._deleteBatch =
   function deleteBatch (_id, doc_id, ts) {
 
     _batch.push({
@@ -99,12 +118,16 @@ module.exports = function (db, id, schema) {
 
   }
 
-  db.scuttlebutt = function () {
-    var args = [].slice.call(arguments)
-    return db.scuttlebutt.open.apply(null, args)
-  }
+  var dbO
+  opener = BufferedOpener(schema).swap(dbO = DbOpener(db))
 
-  db.scuttlebutt._open = function (doc_id, tail, callback) {
+  db.scuttlebutt.open = opener.open
+  db.scuttlebutt.view = opener.view
+  db.scuttlebutt.createRemoteStream = dbO.createStream
+
+  /*
+  db.scuttlebutt._open =
+  opener.open = function (doc_id, tail, callback) {
     if('function' === typeof tail) callback = tail, tail = true
 
     if(!doc_id) throw new Error('must provide a doc_id')
@@ -204,6 +227,7 @@ module.exports = function (db, id, schema) {
 
     return emitter
   }
+  //*/
 
   db.scuttlebutt.createReplicateStream = function (opts) {
     opts = opts || {}
@@ -288,10 +312,10 @@ module.exports = function (db, id, schema) {
 
   db.scuttlebutt.range = range
 
-  var r = Remote(schema).openDb(db)
+//  var r = Remote(schema).openDb(db)
 
-  db.scuttlebutt.open = r.open
-  db.scuttlebutt.createRemoteStream = r.createStream
+  //db.scuttlebutt.open = r.open
+  //db.scuttlebutt.createRemoteStream = r.createStream
   //THIS IS BROKE
   //db.scuttlebutt.view = 
 
@@ -311,5 +335,4 @@ module.exports = function (db, id, schema) {
         cb(null, clock)
       })
   }
-
 }
