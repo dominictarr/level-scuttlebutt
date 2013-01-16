@@ -17,6 +17,8 @@ var DbOpener     = require('./lib/db-opener')
 var BufferedOpener
                  = require('./lib/buffered-opener')
 var ClientOpener = require('./lib/client-opener')
+var MakeCreateStream
+                 = require('./lib/stream')
 
 //need a seperator that sorts early.
 //use NULL instead?
@@ -71,6 +73,7 @@ module.exports = function (db, id, schema) {
   }
 
   db.scuttlebutt._checkOld = checkOld
+  db.scuttlebutt._match = match
 
   var insertBatch =
   db.scuttlebutt._insertBatch = 
@@ -123,7 +126,7 @@ module.exports = function (db, id, schema) {
 
   db.scuttlebutt.open = opener.open
   db.scuttlebutt.view = opener.view
-  db.scuttlebutt.createRemoteStream = dbO.createStream
+  db.scuttlebutt.createRemoteStream = MakeCreateStream(opener) //dbO.createStream
 
   /*
   db.scuttlebutt._open =
