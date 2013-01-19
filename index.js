@@ -44,7 +44,7 @@ module.exports = function (db, id, schema) {
 
   hooks()(db)
 
-  var match = makeSchema(schema)
+  var match = makeSchema(schema, id)
 
   //create a new scuttlebutt attachment.
   //a document that is modeled as a range of keys,
