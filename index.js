@@ -8,7 +8,7 @@ var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('./lib/schema')
-var cache        = require('./lib/cache')
+//var cache        = require('./lib/cache')
 var sbMapReduce  = require('./lib/map')
 
 //var Remote     = require('./remote')
@@ -122,7 +122,7 @@ module.exports = function (db, id, schema) {
   }
 
   var dbO
-  opener = BufferedOpener(schema).swap(dbO = DbOpener(db))
+  opener = BufferedOpener(schema, id).swap(dbO = DbOpener(db))
 
   db.scuttlebutt.open = opener.open
   db.scuttlebutt.view = opener.view
