@@ -49,19 +49,23 @@ function next() {
   if(--z) return
   var streamA = A.scuttlebutt.createReplicateStream({tail: false})
   var streamB = B.scuttlebutt.createReplicateStream({tail: false})
-
+  
   streamA.pipe(delay(100)).pipe(streamB).pipe(delay(100)).pipe(streamA)
+
+  streamA.pipe(process.stderr, {end: false})
   
   var n = 2, vecA, vecB
 
   streamA.on('end', function () {
     A.scuttlebutt.vectorClock(function (err, vec) {
+      console.log('streamA end')
       vecA = vec; next()
     })
   })
 
   streamB.on('end', function () {
     B.scuttlebutt.vectorClock(function (err, vec) {
+      console.log('streamB end')
       vecB = vec; next()
     })
   })

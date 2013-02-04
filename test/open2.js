@@ -24,7 +24,7 @@ tape('local open, remote open', function (t) {
     LevelScuttlebutt(db, 'test', schema)
  
     var local  = db.scuttlebutt
-    var remote = Client(schema)
+    var remote = Client(schema, 'test-client')
     var a, b
 
     remote.open('foo1', mac(function (err, _a) {

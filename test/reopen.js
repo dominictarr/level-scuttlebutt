@@ -20,7 +20,7 @@ var A, B
 
 create('/tmp/level-scuttlebutt-test-A', function (err, db) {
 
-  require('..')(db, 'test1', {
+  require('../')(db, 'test1', {
     test: function () {
       return Model()
     }
@@ -41,6 +41,7 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
 
     db.scuttlebutt(m.name, function (err, _m) {
 
+      console.log(_m.history(), m.history())
       t.notStrictEqual(_m, m)
       t.deepEqual(_m.history(), m.history())
       t.end()

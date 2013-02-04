@@ -18,7 +18,7 @@ tape('local open, remote open', function (t) {
     LevelScuttlebutt(db, 'TEST', schema)
  
     var local  = db.scuttlebutt
-    var client = Client(schema)
+    var client = Client(schema, 'TEST-CLIENT')
 
     local.open('test1', mac(function (err, a) {
       if(err) t.fail(err)
@@ -28,22 +28,27 @@ tape('local open, remote open', function (t) {
       a.set('x', Math.random())
       a.set('y', Math.random())
       a.set('z', Math.random())
- 
+      console.log('A', a.history(), a._parent.history())
 
+      setTimeout(function () {
+ 
       client.open('test1', mac(function (err, b) {
-        console.log('client_open', b.name)
         if(err) t.fail(err)
+        
+        console.log('B', b.history())
         t.notStrictEqual(a, b)
         t.deepEqual(b.history(), a.history())
         t.end()
       }).once())
+
+      }, 500)
     }).once())
  
     var ls = local.createRemoteStream()
     var rs = client.createStream()
 
-    rs.on('data', console.log)
-    ls.on('data', console.log)
+    rs.on('data', function (d) { console.log('rs>>', d) })
+    ls.on('data', function (d) { console.log('ls>>', d) })
 
     ls.pipe(rs).pipe(ls)
   }).once())
@@ -60,7 +65,7 @@ tape('parallel open', function (t) {
     var a,b
 
     var local  = db.scuttlebutt
-    var remote = Client(schema)
+    var remote = Client(schema, 'TEST-CLIENT')
     local.open('test1', mac(function (err, _a) {
       if(err) t.fail(err)
       a = _a
