@@ -211,13 +211,6 @@ module.exports = function (db, id, schema) {
 
   db.scuttlebutt.range = range
 
-//  var r = Remote(schema).openDb(db)
-
-  //db.scuttlebutt.open = r.open
-  //db.scuttlebutt.createRemoteStream = r.createStream
-  //THIS IS BROKE
-  //db.scuttlebutt.view = 
-
   sbMapReduce(db)
 
   //read the vector clock. {id: ts, ...} pairs.
