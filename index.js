@@ -50,7 +50,10 @@ module.exports = function (db, id, schema) {
   //a document that is modeled as a range of keys,
   //rather than as a single {key: value} pair
 
+  //WHY DID I DO THIS? - remove this and it works.
+  //but it seems to be problem with r-array...
   function checkOld (id, ts) {
+    return false
     if(sources[id] && sources[id] >= ts) return true
     sources[id] = ts
   }
@@ -60,8 +63,8 @@ module.exports = function (db, id, schema) {
   function save() {
     if(!queued)
       process.nextTick(function () {
-        queued = false
         db.batch(_batch)
+        queued = false
         _batch = []
       })
     queued = true
@@ -78,8 +81,13 @@ module.exports = function (db, id, schema) {
   var insertBatch =
   db.scuttlebutt._insertBatch = 
   function (_id, doc_id, ts, value) {
+    ts = ts.toString()
 
-    if(checkOld(_id, ts)) return
+    //WTF WHY WAS THIS BEING TRIGGERED?
+    //if(checkOld(_id, ts)) return console.log('OLD', ts, value)
+    //if(checkOld(_id, ts))
+    //   console.log('write-old', _id, ts)
+
 
     _batch.push({
       key: bucket([doc_id, ts, _id]),
