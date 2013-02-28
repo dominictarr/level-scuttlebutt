@@ -1,48 +1,43 @@
 # level-scuttlebutt
 
-Plugin to add persist and query [scuttlebutt](https://github.com/scuttlebutt) documents
+Plugin to add persistence and querying [scuttlebutt](https://github.com/scuttlebutt) documents
 stored in leveldb.
 
 Instead of representing an object as a single document, scuttlebutt represents a document as
 a series of immutable transactions. The 'document' is modified by appending a new transaction.
 Old transactions that are no longer relevant can be cleaned up, but you can never modify a
-transaction in place. Turns out, that leveldb (a log-structured merge tree) is optimized for 
+transaction in place. As it turns out, leveldb (a log-structured merge tree) is optimized for 
 exactly this sort of data.
 
 # Example
 
 ``` js
-//creae a leveldb instance and patch it with level-scuttlebutt
-var levelup = require("levelup")
-var level_scuttlebutt = require("level-scuttlebutt")
-
 //a scuttlebutt model.
 var Model = require('scuttlebutt/model')
-//Unique Device Id. 
-//level-scuttlebutt needs to know the id this instance,
-//if changes are made to the objects.
-//the udid module handles this
+
+//level-scuttlebutt needs to have an unique identifier of the current instance
 var udid = require('udid')
 
-levelup(DB_FILE, {createIfMissing: true}, function (err, db){
-  if(err) throw err
+//create a leveldb instanc
+var levelup = require("levelup")
+var db = levelup(DB_FILE)
+
+//patch it with level-scuttlebutt.
+var level_scuttlebutt = require("level-scuttlebutt")
+level_scuttlebutt(db, udid, function (name) {
   //create a scuttlebutt instance given a name.
   //the key will match the start of the name.
-  level_scuttlebutt(db, udid, function (name) {
-    //scuttlebutts 
-    return new Model()
-    //now is a good time to customize the scuttlebutt instance.
-  })
+  return new Model()
+  //now is a good time to customize the scuttlebutt instance.
+})
 
-  //see below...
-  db.scuttlebutt.addMapReduce(mapReduceOptions)
+//see below...
+db.scuttlebutt.addMapReduce(mapReduceOptions)
 
-  //open a scuttlebutt instance by name.
-  db.scuttlebutt.open(name, function (err, model) {
-    model.on('change:key', console.log) //...
-    model.set('key', value)
-  })
-
+//open a scuttlebutt instance by name.
+db.scuttlebutt.open(name, function (err, model) {
+  model.on('change:key', console.log) //...
+  model.set('key', value)
 })
 ```
 
@@ -51,12 +46,11 @@ levelup(DB_FILE, {createIfMissing: true}, function (err, db){
 Add `level-scuttlebutt` plugin to the `db` object
 `var level_scuttlebutt = require('level-scuttlebutt'); level_scuttlebutt(db, ID, schema)`
 
-`ID` is a unique string that identifies the node instance, should be tied to the leveldb instance,
+`ID` is a unique string that identifies the node instance and should be tied to the leveldb instance.
 I suggest using [udid](https://github.com/dominictarr/udid).
 
 `schema` should be a function that takes a string (the name of the scuttlebutt instance) and returns
-and empty scuttlebutt instance. You can use [scuttlebutt-schema](https://github.com/dominictarr/scuttlebutt-schema)
-
+and empty scuttlebutt instance. You can use [scuttlebutt-schema](https://github.com/dominictarr/scuttlebutt-schema).
 
 ## Map Reduce
 
