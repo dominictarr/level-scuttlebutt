@@ -130,7 +130,7 @@ module.exports = function (db, id, schema) {
   }
 
   var dbO
-  opener = BufferedOpener(schema, id).swap(dbO = DbOpener(db))
+  var opener = BufferedOpener(schema, id).swap(dbO = DbOpener(db))
 
   db.scuttlebutt.open = opener.open
   db.scuttlebutt.view = opener.view
