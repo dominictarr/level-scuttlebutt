@@ -1,5 +1,6 @@
 require('tape')('test replication', function (t) {
 
+var SubLevel = require('level-sublevel')
 var levelup = require('levelup')
 var rimraf  = require('rimraf')
 var delay   = require('delay-stream')
@@ -8,9 +9,9 @@ var Model   = require('scuttlebutt/model')
 function create(path, cb) {
   rimraf(path, function (err) {
     if(err) return callback(err)
-    levelup(path, {createIfMissing: true}, function (err, db) {
+    levelup(path, function (err, db) {
       if(err) throw err
-      cb(null, db)
+      cb(null, SubLevel(db))
     })
   })
 }
@@ -53,6 +54,7 @@ function next() {
   streamA.pipe(delay(100)).pipe(streamB).pipe(delay(100)).pipe(streamA)
 
   streamA.pipe(process.stderr, {end: false})
+  streamB.pipe(process.stderr, {end: false})
   
   var n = 2, vecA, vecB
 
