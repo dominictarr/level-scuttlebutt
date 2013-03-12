@@ -4,11 +4,13 @@ var timestamp    = require('monotonic-timestamp')
 var uuid         = require('node-uuid')
 var duplex       = require('duplex')
 
+
+var LiveStream   = require('level-live-stream')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('./lib/schema')
 //var cache        = require('./lib/cache')
-var sbMapReduce  = require('./lib/map')
+//var sbMapReduce  = require('./lib/map')
 
 //var Remote     = require('./remote')
 
@@ -175,6 +177,7 @@ module.exports = function (db, id, schema) {
         } else {
           //data should be {id: ts}
           yourClock = JSON.parse(data.shift())
+          console.log('YOUR CLOCK', yourClock)
           start()
         }
       } else {
@@ -199,28 +202,23 @@ module.exports = function (db, id, schema) {
 
       var clock = {}
       for(var id in myClock)
-        clock[id] = 0
+        clock[id] = ''
 
       for(var id in yourClock)
         clock[id] = yourClock[id]
 
       var started = 0
       for(var id in clock) {
-
         (function (id) {
-
           started ++
-          var opts = {
+          var _opts = {
             start: [id, clock[id]].join('!'),
-            end  :  [id, '\xff'].join('!')
+            end  :  [id, '\xff'].join('!'),
+            tail : opts.tail
           }
-//_bucket.range([id, clock[id], true], [id, '\xff', true])
-          
-//          opts.start = _opts.start; opts.end = _opts.end
-          
           //TODO, merge stream that efficiently handles back pressure
           //when reading from many streams.
-          var stream = LiveStream(replicateDb, opts)
+          var stream = LiveStream(replicateDb, _opts)
             .on('data', function (data) {
               var ary = data.key.split('!')
               ary.push(data.value)
@@ -245,10 +243,6 @@ module.exports = function (db, id, schema) {
 
     return outer
   }
-
-  //db.scuttlebutt.range = range
-
-//  sbMapReduce(db)
 
   //read the vector clock. {id: ts, ...} pairs.
   db.scuttlebutt.vectorClock = function (cb) {
