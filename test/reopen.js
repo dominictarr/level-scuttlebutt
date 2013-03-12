@@ -1,6 +1,7 @@
 require('tape')('test', function (t) {
 
 var levelup = require('levelup')
+var SubLevel = require('level-sublevel')
 var rimraf  = require('rimraf')
 var delay   = require('delay-stream')
 var Model   = require('scuttlebutt/model')
@@ -11,7 +12,7 @@ function create(path, cb) {
     if(err) return callback(err)
     levelup(path, {createIfMissing: true}, function (err, db) {
       if(err) throw err
-      cb(null, db)
+      cb(null, SubLevel(db))
     })
   })
 }

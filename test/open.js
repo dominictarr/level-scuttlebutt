@@ -2,6 +2,8 @@
 
 var rimraf  = require('rimraf')
 var levelup = require('levelup')
+var SubLevel = require('level-sublevel')
+
 var Model   = require('scuttlebutt/model')
 var LevelScuttlebutt = require('..')
 var Client  = require('../client')
@@ -12,9 +14,12 @@ var tape = require('tape')
 tape('local open, remote open', function (t) {
   var path = '/tmp/test-scuttlebutt-remote'
   t.plan(2)
-  rimraf(path, mac(function () {
-    var db = levelup(path, {createIfMissing: true})
+  rimraf(path, mac(function (err) {
+    var db = SubLevel(
+      levelup(path, {createIfMissing: true})
+    )
     var schema = {test: function () { return new Model} }
+
     LevelScuttlebutt(db, 'TEST', schema)
  
     var local  = db.scuttlebutt
@@ -58,7 +63,7 @@ tape('parallel open', function (t) {
   var path = '/tmp/test-scuttlebutt-remote2'
   t.plan(2)
   rimraf(path, function () {
-    var db = levelup(path, {createIfMissing: true})
+    var db = SubLevel(levelup(path, {createIfMissing: true}))
     var schema = {test: Model}
     LevelScuttlebutt(db, 'test', schema)
 
