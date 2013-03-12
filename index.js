@@ -4,7 +4,6 @@ var timestamp    = require('monotonic-timestamp')
 var uuid         = require('node-uuid')
 var duplex       = require('duplex')
 
-var hooks        = require('level-hooks')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('./lib/schema')
@@ -27,11 +26,21 @@ var SEP = ' '
 var DEFAULT = 'SCUTTLEBUTT'
 
 module.exports = function (db, id, schema) {
+
+  //none of these should be used.
+  var sep = '!'
+
+  var localDb     = db.sublevel('sb')
+  var replicateDb = db.sublevel('replicate')
+  var vectorDb    = db.sublevel('vector')
+
+/*
   var prefix  = DEFAULT //TEMP
   var bucket  = Bucket(prefix  || DEFAULT)
   var _bucket = Bucket((prefix || DEFAULT)+'_R')
   var vector  = Bucket((prefix || DEFAULT)+'_V')
   var range   = bucket.range()
+*/
 
   var sources = {}
 
@@ -40,9 +49,9 @@ module.exports = function (db, id, schema) {
 
   id = id || uuid()
 
-  if(db.scuttlebutt) return db
+//  if(db.scuttlebutt) return db
 
-  hooks()(db)
+//  hooks()(db)
 
   var match = makeSchema(schema, id)
 
@@ -77,6 +86,11 @@ module.exports = function (db, id, schema) {
 
   db.scuttlebutt._checkOld = checkOld
   db.scuttlebutt._match = match
+  db.scuttlebutt._localDb = localDb
+
+  function key() {
+    return [].slice.call(arguments).join(sep)
+  }
 
   var insertBatch =
   db.scuttlebutt._insertBatch = 
@@ -88,45 +102,47 @@ module.exports = function (db, id, schema) {
     //if(checkOld(_id, ts))
     //   console.log('write-old', _id, ts)
 
-
     _batch.push({
-      key: bucket([doc_id, ts, _id]),
-      value: value, type: 'put'
+      key: key(doc_id, ts, _id),
+      value: value, type: 'put',
+      prefix: localDb
     })
 
     _batch.push({
       //the second time, so that documents can be rapidly replicated.
-      key: _bucket([_id, ts, doc_id]),
-      value: value, type: 'put'
+      key: key(_id, ts, doc_id),
+      value: value, type: 'put',
+      prefix: replicateDb
     })
 
     _batch.push({
       //also, update the vector clock for this replication range,
       //so that it's easy to recall what are the latest documents are.
       //this vector clock is for all the documents, not just this one...
-      key: vector(_id), value: ''+ts, type: 'put'
+      key: _id, value: ''+ts, type: 'put',
+      prefix: vectorDb
     })
 
     save()
   }
 
-  db.scuttlebutt._bucket = bucket
+//  db.scuttlebutt._bucket = bucket
 
   var deleteBatch =
   db.scuttlebutt._deleteBatch =
   function deleteBatch (_id, doc_id, ts) {
 
     _batch.push({
-      key: bucket([doc_id, ts, _id]),
-      type: 'del'
+      key: key(doc_id, ts, _id),
+      type: 'del', prefix: localDb
     })
 
     _batch.push({
-      key: _bucket([_id, ts, doc_id]),
-      type: 'del'
+      key: key(_id, ts, doc_id),
+      type: 'del', prefix: replicateDb
     })
-    save()
 
+    save()
   }
 
   var dbO
@@ -136,7 +152,17 @@ module.exports = function (db, id, schema) {
   db.scuttlebutt.view = opener.view
   db.scuttlebutt.createRemoteStream = MakeCreateStream(opener) //dbO.createStream
 
+  //REPLICATION XXXX 
+  // FIX THIS LATER
+  // FIX THIS LATER
+  // FIX THIS LATER
+  // FIX THIS LATER
+  // FIX THIS LATER
+  // FIX THIS LATER
+  // FIX THIS LATER
+
   db.scuttlebutt.createReplicateStream = function (opts) {
+    //throw new Error ('NOT IMPLEMNTED YET')
     opts = opts || {}
     var yourClock, myClock
     var d = duplex ()
@@ -183,17 +209,20 @@ module.exports = function (db, id, schema) {
 
         (function (id) {
 
-          //var _id = _bucket.parse(id).key
           started ++
-          var _opts = _bucket.range([id, clock[id], true], [id, '\xff', true])
+          var opts = {
+            start: [id, clock[id]].join('!'),
+            end  :  [id, '\xff'].join('!')
+          }
+//_bucket.range([id, clock[id], true], [id, '\xff', true])
           
-          opts.start = _opts.start; opts.end = _opts.end
+//          opts.start = _opts.start; opts.end = _opts.end
           
           //TODO, merge stream that efficiently handles back pressure
           //when reading from many streams.
-          var stream = db.liveStream(opts)
+          var stream = LiveStream(replicateDb, opts)
             .on('data', function (data) {
-              var ary = _bucket.parse(data.key).key
+              var ary = data.key.split('!')
               ary.push(data.value)
               d._data(ary)
             })
@@ -217,19 +246,16 @@ module.exports = function (db, id, schema) {
     return outer
   }
 
-  db.scuttlebutt.range = range
+  //db.scuttlebutt.range = range
 
-  sbMapReduce(db)
+//  sbMapReduce(db)
 
   //read the vector clock. {id: ts, ...} pairs.
   db.scuttlebutt.vectorClock = function (cb) {
     var clock = {}
-    var opts = vector.range()
-    opts.sync = true
-    db.readStream(opts)
+    vectorDb.createReadStream()
       .on('data', function (data) {
-        var k = bucket.parse(data.key).key
-        clock[k] = Number(''+data.value)
+        clock[data.key] = Number(''+data.value)
       })
       .on('close', function () {
         cb(null, clock)
