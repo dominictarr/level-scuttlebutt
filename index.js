@@ -14,7 +14,7 @@ var makeSchema   = require('./lib/schema')
 
 //var Remote     = require('./remote')
 
-var DbOpener     = require('./lib/db-opener')
+//var DbOpener     = require('./lib/db-opener')
 var BufferedOpener
                  = require('./lib/buffered-opener')
 var ClientOpener = require('./lib/client-opener')
@@ -30,7 +30,7 @@ var DEFAULT = 'SCUTTLEBUTT'
 module.exports = function (db, id, schema) {
 
   //none of these should be used.
-  var sep = '!'
+  var sep = '\x00'
 
   var localDb     = db.sublevel('sb')
   var replicateDb = db.sublevel('replicate')
@@ -89,10 +89,14 @@ module.exports = function (db, id, schema) {
   db.scuttlebutt._checkOld = checkOld
   db.scuttlebutt._match = match
   db.scuttlebutt._localDb = localDb
-
+  db.scuttlebutt._sep = sep
   function key() {
     return [].slice.call(arguments).join(sep)
   }
+
+  localDb.pre(function (ch, add) {
+    ch.key.split(sep)
+  })
 
   var insertBatch =
   db.scuttlebutt._insertBatch = 
@@ -147,24 +151,140 @@ module.exports = function (db, id, schema) {
     save()
   }
 
-  var dbO
-  var opener = BufferedOpener(schema, id).swap(dbO = DbOpener(db))
+  var dbO = new EventEmitter()
+  dbO.open = function (doc_id, tail, callback) {
+    if('function' === typeof tail) callback = tail, tail = true
+
+    if(!doc_id) throw new Error('must provide a doc_id')
+    var emitter
+    if('string' === typeof doc_id) {
+      emitter = match(doc_id)
+    } else {
+      emitter = doc_id
+      doc_id = emitter.name
+    }
+
+
+    //read current state from db.
+//    var opts = bucket.range([doc_id, 0, true], [doc_id, '\xff', true])
+  //  opts.tail = tail
+
+    var stream = LiveStream(localDb, {
+          start: [doc_id, 0].join(sep),
+          end: [doc_id, '~'].join(sep)
+        })
+        .on('data', function (data) {
+          //ignore deletes,
+          //deletes must be an update.
+          if(data.type == 'del') return
+
+          var ary    = data.key.split(sep)
+          var ts     = Number(ary[1])
+          var source = ary[2]
+          var change  = JSON.parse(data.value)
+
+          //if(checkOld(source, ts))
+          //  console.log('read-old', source, ts)
+          emitter._update([change, ts, source])
+        })
+
+    //this scuttlebutt instance is up to date with the db.
+    
+    var ready = false
+    function onReady () {
+      if(ready) return
+      ready = true
+      emitter.emit('sync')
+      if(callback) callback(null, emitter)
+    }
+
+    stream.once('sync', onReady)
+    stream.once('end' , onReady)
+
+    emitter.once('dispose', function () {
+      //levelup/read-stream throws if the stream has already ended
+      //but it's just a user error, not a serious problem.
+      try { stream.destroy() } catch (_) { }
+    })
+
+    //write the update twice, 
+    //the first time, to store the document.
+    //maybe change scuttlebutt so that value is always a string?
+    //If i write a bunch of batches, will they come out in order?
+    //because I think updates are expected in order, or it will break.
+
+    function onUpdate (update) {
+      var value = update[0], ts = update[1], id = update[2]
+      insertBatch (id, doc_id, ts, JSON.stringify(value))
+    }
+
+    emitter.history().forEach(onUpdate)
+
+    //track updates...
+    emitter.on('_update', onUpdate)
+
+    //an update is now no longer significant
+    emitter.on('_remove', function (update) {
+      var ts = update[1], id = update[2]
+      deleteBatch (id, doc_id, ts)
+    })
+
+    return emitter
+  }
+
+  dbO.createStream = function () {
+    var mx = MuxDemux(function (stream) {
+      if(!db) return stream.error('cannot access database this end')
+
+      if('string' === typeof stream.meta) {
+        var ts = through().pause()
+        //TODO. make mux-demux pause.
+
+        stream.pipe(ts)
+        //load the scuttlebutt with the callback,
+        //and then connect the stream to the client
+        //so that the 'sync' event fires the right time,
+        //and the open method works on the client too.
+        opener.open(stream.meta, function (err, doc) {
+          ts.pipe(doc.createStream()).pipe(stream)
+          ts.resume()
+        })
+      } else if(Array.isArray(stream.meta)) {
+        //reduce the 10 most recently modified documents.
+        opener.view.apply(null, stream.meta)
+          .pipe(through(function (data) {
+            this.queue({
+              key: data.key.toString(), 
+              value: data.value.toString()
+            })
+          }))
+          .pipe(stream)
+      }
+    })
+    //clean up
+    function onClose () { mx.end() }
+    db.once('close', onClose)
+    mx.once('close', function () { db.removeListener('close', onClose) })
+
+    return mx
+  }
+
+  dbO.view = function () {
+    var args = [].slice.call(arguments)
+    return db.mapReduce.view.apply(db.mapReduce, args)
+  }
+
+  db.on('close', function () {
+    opener.emit('close')
+  })
+
+  var opener = BufferedOpener(schema, id).swap(dbO)
 
   db.scuttlebutt.open = opener.open
   db.scuttlebutt.view = opener.view
   db.scuttlebutt.createRemoteStream = MakeCreateStream(opener) //dbO.createStream
 
-  //REPLICATION XXXX 
-  // FIX THIS LATER
-  // FIX THIS LATER
-  // FIX THIS LATER
-  // FIX THIS LATER
-  // FIX THIS LATER
-  // FIX THIS LATER
-  // FIX THIS LATER
-
   db.scuttlebutt.createReplicateStream = function (opts) {
-    //throw new Error ('NOT IMPLEMNTED YET')
     opts = opts || {}
     var yourClock, myClock
     var d = duplex ()
@@ -212,15 +332,15 @@ module.exports = function (db, id, schema) {
         (function (id) {
           started ++
           var _opts = {
-            start: [id, clock[id]].join('!'),
-            end  :  [id, '\xff'].join('!'),
+            start: [id, clock[id]].join(sep),
+            end  :  [id, '\xff'].join(sep),
             tail : opts.tail
           }
           //TODO, merge stream that efficiently handles back pressure
           //when reading from many streams.
           var stream = LiveStream(replicateDb, _opts)
             .on('data', function (data) {
-              var ary = data.key.split('!')
+              var ary = data.key.split(sep)
               ary.push(data.value)
               d._data(ary)
             })
