@@ -9,12 +9,6 @@ var LiveStream   = require('level-live-stream')
 var REDIS        = require('redis-protocol-stream')
 
 var makeSchema   = require('./lib/schema')
-//var cache        = require('./lib/cache')
-//var sbMapReduce  = require('./lib/map')
-
-//var Remote     = require('./remote')
-
-//var DbOpener     = require('./lib/db-opener')
 var BufferedOpener
                  = require('./lib/buffered-opener')
 var ClientOpener = require('./lib/client-opener')
@@ -36,24 +30,12 @@ module.exports = function (db, id, schema) {
   var replicateDb = db.sublevel('replicate')
   var vectorDb    = db.sublevel('vector')
 
-/*
-  var prefix  = DEFAULT //TEMP
-  var bucket  = Bucket(prefix  || DEFAULT)
-  var _bucket = Bucket((prefix || DEFAULT)+'_R')
-  var vector  = Bucket((prefix || DEFAULT)+'_V')
-  var range   = bucket.range()
-*/
-
   var sources = {}
 
   if('string' !== typeof id)
     schema = id, id = null
 
   id = id || uuid()
-
-//  if(db.scuttlebutt) return db
-
-//  hooks()(db)
 
   var match = makeSchema(schema, id)
 
@@ -86,10 +68,6 @@ module.exports = function (db, id, schema) {
     return db.scuttlebutt.open.apply(null, args)
   }
 
-  db.scuttlebutt._checkOld = checkOld
-  db.scuttlebutt._match = match
-  db.scuttlebutt._localDb = localDb
-  db.scuttlebutt._sep = sep
   function key() {
     return [].slice.call(arguments).join(sep)
   }
@@ -163,11 +141,6 @@ module.exports = function (db, id, schema) {
       emitter = doc_id
       doc_id = emitter.name
     }
-
-
-    //read current state from db.
-//    var opts = bucket.range([doc_id, 0, true], [doc_id, '\xff', true])
-  //  opts.tail = tail
 
     var stream = LiveStream(localDb, {
           start: [doc_id, 0].join(sep),
@@ -281,6 +254,7 @@ module.exports = function (db, id, schema) {
   var opener = BufferedOpener(schema, id).swap(dbO)
 
   db.scuttlebutt.open = opener.open
+  db.scuttlebutt._opener = dbO
   db.scuttlebutt.view = opener.view
   db.scuttlebutt.createRemoteStream = MakeCreateStream(opener) //dbO.createStream
 

@@ -5,7 +5,7 @@ var SubLevel = require('level-sublevel')
 var rimraf  = require('rimraf')
 var delay   = require('delay-stream')
 var Model   = require('scuttlebutt/model')
-var Opener  = require('../lib/db-opener')
+//var Opener  = require('../lib/db-opener')
 
 function create(path, cb) {
   rimraf(path, function (err) {
@@ -35,7 +35,7 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
   m.set('y', Math.random())
   m.set('z', Math.random())
 
-  var opener = Opener(db)
+  var opener = db.scuttlebutt._opener //Opener(db)
 
   opener.open(m, function () {
     console.log('reopened')
