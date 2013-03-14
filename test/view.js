@@ -1,19 +1,22 @@
 require('tape')('test', function (t) {
 
-var levelup = require('levelup')
-var rimraf  = require('rimraf')
-var delay   = require('delay-stream')
-var Model   = require('scuttlebutt/model')
-var LevelScuttlebutt = require('../')
-var Client  = require('../client')
-var mac     = require('macgyver')().autoValidate()
+var levelup   = require('levelup')
+var SubLevel  = require('level-sublevel')
+var rimraf    = require('rimraf')
+var delay     = require('delay-stream')
+var Model     = require('scuttlebutt/model')
+var LevelScuttlebutt
+              = require('../')
+var MapReduce = require('map-reduce')
+var Client    = require('../client')
+var mac       = require('macgyver')().autoValidate()
 
 function create(path, cb) {
   rimraf(path, function (err) {
     if(err) return callback(err)
     levelup(path, {createIfMissing: true}, function (err, db) {
       if(err) throw err
-      cb(null, db)
+      cb(null, SubLevel(db))
     })
   })
 }
@@ -30,16 +33,17 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
 
   LevelScuttlebutt(db, 'test1', schema)
 
-  db.scuttlebutt.addView({
-    name: 'all',
-    map: function (key, scuttle, emit) { 
-      return emit(scuttle.name.split('!'), 1)
-    },
-    reduce: function (acc, item) {
-      return '' + (Number(acc) + Number(item))
-    },
-    initial: 0
-  })
+  db.views['all'] = 
+    MapReduce(db, 'all',
+      function (key, scuttle, emit) { 
+        console.log(key.split('!'), scuttle)
+        return emit(key.split('!'), 1)
+      },
+      function (acc, item) {
+        return '' + (Number(acc) + Number(item))
+      },
+      '0'
+    )
 
   //open a scuttlebutt, then close the connection to the database,
   //then reopen the connection, then the scuttlebutt should be reconnected.
@@ -67,11 +71,13 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
   function onEnd () {
     if(!ended++) return
     t.deepEqual(rv, lv)
+//    console.log(rv, lv)
+//    console.log('passed?')
     t.end()
   }
 
   remote.view({
-    name: 'all', start: ['test', true]
+    name: 'all', range: ['test', true]
   }).on('data', function (data) {
     console.log('remote view', data)
     rv.push(data)
@@ -79,7 +85,7 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
   })
 
   local.view({
-    name: 'all', start: ['test', true]
+    name: 'all', range: ['test', true]
   }).on('data', function (data) {
     console.log('local view', data)
     lv.push(data)
