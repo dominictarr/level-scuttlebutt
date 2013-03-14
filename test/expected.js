@@ -14,7 +14,7 @@ require('tape')('test', function (t) {
     return m
   });
 
-  db.scuttlebutt.open('some-name', function (err, model) {
+  db.open('some-name', function (err, model) {
     if(err) throw err
     t.deepEqual(model.toJSON(), {foo: 'BAR'})
     t.end()
