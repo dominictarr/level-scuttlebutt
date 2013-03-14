@@ -1,9 +1,5 @@
-var Bucket       = require('range-bucket')
 var EventEmitter = require('events').EventEmitter
-var timestamp    = require('monotonic-timestamp')
-var uuid         = require('node-uuid')
 var duplex       = require('duplex')
-
 
 var LiveStream   = require('level-live-stream')
 var REDIS        = require('redis-protocol-stream')
@@ -11,25 +7,20 @@ var REDIS        = require('redis-protocol-stream')
 var makeSchema   = require('./lib/schema')
 var BufferedOpener
                  = require('./lib/buffered-opener')
-var ClientOpener = require('./lib/client-opener')
 var MakeCreateStream
                  = require('./lib/stream')
+var ranges       = require('map-reduce/range')
 
 //need a seperator that sorts early.
 //use NULL instead?
-
-var SEP = ' '
-var DEFAULT = 'SCUTTLEBUTT'
 
 module.exports = function (db, id, schema) {
 
   //none of these should be used.
   var sep = '\x00'
-
   var localDb     = db.sublevel('sb')
   var replicateDb = db.sublevel('replicate')
   var vectorDb    = db.sublevel('vector')
-
   var sources = {}
 
   if('string' !== typeof id)
@@ -56,7 +47,9 @@ module.exports = function (db, id, schema) {
   function save() {
     if(!queued)
       process.nextTick(function () {
-        db.batch(_batch)
+        db.batch(_batch, function () {
+          db.emit('drain')
+        })
         queued = false
         _batch = []
       })
@@ -72,19 +65,8 @@ module.exports = function (db, id, schema) {
     return [].slice.call(arguments).join(sep)
   }
 
-  localDb.pre(function (ch, add) {
-    ch.key.split(sep)
-  })
-
-  var insertBatch =
-  db.scuttlebutt._insertBatch = 
-  function (_id, doc_id, ts, value) {
+  function insertBatch (_id, doc_id, ts, value, emitter) {
     ts = ts.toString()
-
-    //WTF WHY WAS THIS BEING TRIGGERED?
-    //if(checkOld(_id, ts)) return console.log('OLD', ts, value)
-    //if(checkOld(_id, ts))
-    //   console.log('write-old', _id, ts)
 
     _batch.push({
       key: key(doc_id, ts, _id),
@@ -107,13 +89,21 @@ module.exports = function (db, id, schema) {
       prefix: vectorDb
     })
 
+    //or do this async?
+    //YES, do this async, providing a way to wait until the given
+    //maps have been flushed.
+
+    if(emitter && emitter.toJSON)
+      _batch.push({
+        key: doc_id,
+        value: JSON.stringify(emitter.toJSON()),
+        type: 'put',
+        prefix: db
+      })
+
     save()
   }
 
-//  db.scuttlebutt._bucket = bucket
-
-  var deleteBatch =
-  db.scuttlebutt._deleteBatch =
   function deleteBatch (_id, doc_id, ts) {
 
     _batch.push({
@@ -156,8 +146,6 @@ module.exports = function (db, id, schema) {
           var source = ary[2]
           var change  = JSON.parse(data.value)
 
-          //if(checkOld(source, ts))
-          //  console.log('read-old', source, ts)
           emitter._update([change, ts, source])
         })
 
@@ -188,7 +176,7 @@ module.exports = function (db, id, schema) {
 
     function onUpdate (update) {
       var value = update[0], ts = update[1], id = update[2]
-      insertBatch (id, doc_id, ts, JSON.stringify(value))
+      insertBatch (id, doc_id, ts, JSON.stringify(value), emitter)
     }
 
     emitter.history().forEach(onUpdate)
@@ -242,9 +230,22 @@ module.exports = function (db, id, schema) {
     return mx
   }
 
-  dbO.view = function () {
-    var args = [].slice.call(arguments)
-    return db.mapReduce.view.apply(db.mapReduce, args)
+  //THIS IS JUST LEGACY STUFF NOW,
+  //TODO: rewrite the streaming/client api,
+  //so this disappears.
+
+  db.views = {}
+  dbO.view = function (name, opts) {
+    if(!opts)
+      opts = name, name = opts.name
+    if(opts.range) {
+      var r      = ranges.range(opts.range)
+      opts.start = r.start
+      opts.end   = r.end
+    }
+    if(db.views[name])
+      return LiveStream(db.views[name], opts)
+    throw new Error('no view named:', name)
   }
 
   db.on('close', function () {
@@ -253,11 +254,14 @@ module.exports = function (db, id, schema) {
 
   var opener = BufferedOpener(schema, id).swap(dbO)
 
+  db.open =
   db.scuttlebutt.open = opener.open
   db.scuttlebutt._opener = dbO
   db.scuttlebutt.view = opener.view
-  db.scuttlebutt.createRemoteStream = MakeCreateStream(opener) //dbO.createStream
+  db.createRemoteStream = 
+  db.scuttlebutt.createRemoteStream = MakeCreateStream(opener)
 
+  db.createReplicateStream =
   db.scuttlebutt.createReplicateStream = function (opts) {
     opts = opts || {}
     var yourClock, myClock
@@ -271,7 +275,6 @@ module.exports = function (db, id, schema) {
         } else {
           //data should be {id: ts}
           yourClock = JSON.parse(data.shift())
-          console.log('YOUR CLOCK', yourClock)
           start()
         }
       } else {
@@ -328,7 +331,6 @@ module.exports = function (db, id, schema) {
         })(id);
       }
     }
-
     db.scuttlebutt.vectorClock(function (err, clock) {
       myClock = clock
       d._data([JSON.stringify(clock)])
@@ -339,6 +341,8 @@ module.exports = function (db, id, schema) {
   }
 
   //read the vector clock. {id: ts, ...} pairs.
+
+  db.vectorClock =
   db.scuttlebutt.vectorClock = function (cb) {
     var clock = {}
     vectorDb.createReadStream()
@@ -350,3 +354,4 @@ module.exports = function (db, id, schema) {
       })
   }
 }
+
