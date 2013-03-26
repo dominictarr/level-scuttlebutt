@@ -9,36 +9,59 @@ Old transactions that are no longer relevant can be cleaned up, but you can neve
 transaction in place. As it turns out, leveldb (a log-structured merge tree) is optimized for 
 exactly this sort of data.
 
+Must be used with [level-sublevel](https://github.com/dominictarr/level-sublevel)
+
 # Example
 
 ``` js
+var levelup = require("levelup")
+var level_scuttlebutt = require("level-scuttlebutt")
+var SubLevel = require('level-sublevel')
+
+
+//create a leveldb instance...
+//levelup must be extended with SubLevel!
+var db = SubLevel(levelup(DB_FILE))
+
+
+
 //a scuttlebutt model.
 var Model = require('scuttlebutt/model')
 
 //level-scuttlebutt needs to have an unique identifier of the current instance
 var udid = require('udid')
 
-//create a leveldb instanc
-var levelup = require("levelup")
-var db = levelup(DB_FILE)
 
 //patch it with level-scuttlebutt.
-var level_scuttlebutt = require("level-scuttlebutt")
-level_scuttlebutt(db, udid, function (name) {
+var sbDb = db.sublevel('scuttlebutt') //add a scuttlebutt 'table'
+
+//k
+level_scuttlebutt(sbDb, udid, function (name) {
   //create a scuttlebutt instance given a name.
   //the key will match the start of the name.
   return new Model()
   //now is a good time to customize the scuttlebutt instance.
 })
 
-//see below...
-db.scuttlebutt.addMapReduce(mapReduceOptions)
-
 //open a scuttlebutt instance by name.
-db.scuttlebutt.open(name, function (err, model) {
+sbDb.open(name, function (err, model) {
   model.on('change:key', console.log) //...
   model.set('key', value)
 })
+
+//the toJSON values are stored in the db,
+//so you can just use any other map reduce library on it!
+sbDb.views['all'] =
+  mapReduce(sbDb, 'all', 
+    function (key, json, emit) { 
+      return emit(key.split('!'), 1)
+    },
+    function (acc, item) {
+      return '' + (Number(acc) + Number(item))
+    },
+    '0'
+  )
+
 ```
 
 ## Initialization
@@ -46,36 +69,39 @@ db.scuttlebutt.open(name, function (err, model) {
 Add `level-scuttlebutt` plugin to the `db` object
 `var level_scuttlebutt = require('level-scuttlebutt'); level_scuttlebutt(db, ID, schema)`
 
-`ID` is a unique string that identifies the node instance and should be tied to the leveldb instance.
+`ID` is a unique string that identifies the node (the machine) and should be 
+tied to the leveldb instance.
 I suggest using [udid](https://github.com/dominictarr/udid).
 
-`schema` should be a function that takes a string (the name of the scuttlebutt instance) and returns
-and empty scuttlebutt instance. You can use [scuttlebutt-schema](https://github.com/dominictarr/scuttlebutt-schema).
+`schema` should be a function that takes a string (the name of the scuttlebutt instance)
+and returns and empty scuttlebutt instance.
+You can use [scuttlebutt-schema](https://github.com/dominictarr/scuttlebutt-schema).
 
-## Map Reduce
+## Queries
 
-create a map-reduce `db.scuttlebutt.addMapReduce(mapReduceOptions)`.
-This is the same as `db.mapReduce.add(mapReduceOptions)` in [map-reduce](https://github.com/dominictarr/map-reduce)
-except that you should leave off `start` and `end`, and that in `map: function (key, value) {...}` `value` will be your scuttlebutt instance.
+Use some other `level-*` plugin for queries!
 
-Do not assign event listeners during the `map` function.
+[map-reduce](https://github.com/dominictarr/map-reduce), 
+[level-map-merge](https://github.com/dominictarr/level-map-merge)
 
 ### Example
 
-get the 10 latest documents edited.
+get the 10 last edited documents!
 
 ``` js
-db.scuttlebutt.addMapReduce({
-  name: 'latest10',
-  map: function (key, sb) {
-    var name = sb.meta.get('name') || 'no_name'
+sbDb.views['latest10']
+  = 
+  MapReduce(sdb, 'latest10',
+  function (key, json) {
+    var name = key
+    var obj = JSON.parse(json)
     //emit 0-many group-value pairs.
     //value must be a string or a buffer.
-    this.emit([], JSON.stringify({name: name, time: Date.now(), length: sb.text.length}))
+    this.emit([], JSON.stringify({name: name, time: Date.now(), length: obj.text.length}))
   },
   //merge the latest value into the accumulator.
-  reduce: function (acc, value) {
-    var all = parse(acc).concat(parse(value))
+  function (acc, value) {
+    var all = JSON.parse(acc).concat(JSON.parse(value))
     //sort by time, decending.
     all.sort(function (a, b) {
       return b.time - a.time
@@ -86,7 +112,7 @@ db.scuttlebutt.addMapReduce({
   },
   //the first value for the accumulator.
   //since we are parsing it, it needs to be valid JSON.
-  initial: '[]'
+  '[]'
 })
 ```
 
