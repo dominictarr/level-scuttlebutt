@@ -188,7 +188,7 @@ module.exports = function (db, id, schema) {
 
     function onUpdate (update) {
       var value = update[0], ts = update[1], id = update[2]
-      insertBatch (id, key, ts, JSON.stringify(value), emitter)
+      insertBatch (id, key, ts, JSON.stringify(value), scuttlebutt)
     }
 
     //If the user has passed in a scuttlebutt instead of a key,
