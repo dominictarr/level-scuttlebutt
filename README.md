@@ -29,7 +29,7 @@ var db = SubLevel(levelup(DB_FILE))
 var Model = require('scuttlebutt/model')
 
 //level-scuttlebutt needs to have an unique identifier of the current instance
-var udid = require('udid')
+var udid = require('udid')('app-name')
 
 
 //patch it with level-scuttlebutt.
