@@ -120,21 +120,33 @@ module.exports = function (db, id, schema) {
   }
 
   var dbO = new EventEmitter()
-  dbO.open = function (doc_id, tail, callback) {
+  dbO.open = function (key, tail, callback) {
     if('function' === typeof tail) callback = tail, tail = true
 
-    if(!doc_id) throw new Error('must provide a doc_id')
-    var emitter
-    if('string' === typeof doc_id) {
-      emitter = match(doc_id)
+    if(!key) throw new Error('must provide a doc_id')
+    var scuttlebutt
+    if('string' === typeof key) {
+      scuttlebutt = match(key)
+      scuttlebutt.name = key
+
+      'function' === scuttlebutt.setId
+         ? scuttlebutt.setId(id)
+         : scuttlebutt.id = id
+
     } else {
-      emitter = doc_id
-      doc_id = emitter.name
+      scuttlebutt = key
+      key = scuttlebutt.name
     }
 
+    //*************************************
+    //*TODO: replace this with pull-level *
+    //*there is a bug in liveStream.      *
+    //*(order is not gaurenteed if there  *
+    //*   are live updates)               *
+    //*************************************
     var stream = LiveStream(localDb, {
-          start: [doc_id, 0].join(sep),
-          end: [doc_id, '~'].join(sep)
+          start: [key,   0].join(sep),
+          end  : [key, '~'].join(sep)
         })
         .on('data', function (data) {
           //ignore deletes,
@@ -144,9 +156,9 @@ module.exports = function (db, id, schema) {
           var ary    = data.key.split(sep)
           var ts     = Number(ary[1])
           var source = ary[2]
-          var change  = JSON.parse(data.value)
+          var change = JSON.parse(data.value)
 
-          emitter._update([change, ts, source])
+          scuttlebutt._update([change, ts, source])
         })
 
     //this scuttlebutt instance is up to date with the db.
@@ -155,14 +167,14 @@ module.exports = function (db, id, schema) {
     function onReady () {
       if(ready) return
       ready = true
-      emitter.emit('sync')
-      if(callback) callback(null, emitter)
+      scuttlebutt.emit('sync')
+      if(callback) callback(null, scuttlebutt)
     }
 
     stream.once('sync', onReady)
     stream.once('end' , onReady)
 
-    emitter.once('dispose', function () {
+    scuttlebutt.once('dispose', function () {
       //levelup/read-stream throws if the stream has already ended
       //but it's just a user error, not a serious problem.
       try { stream.destroy() } catch (_) { }
@@ -176,21 +188,26 @@ module.exports = function (db, id, schema) {
 
     function onUpdate (update) {
       var value = update[0], ts = update[1], id = update[2]
-      insertBatch (id, doc_id, ts, JSON.stringify(value), emitter)
+      insertBatch (id, key, ts, JSON.stringify(value), emitter)
     }
 
-    emitter.history().forEach(onUpdate)
+    //If the user has passed in a scuttlebutt instead of a key,
+    //then it may have history, so save that.
+    scuttlebutt.history().forEach(onUpdate)
 
-    //track updates...
-    emitter.on('_update', onUpdate)
+    //then, track real-time updates
+    scuttlebutt.on('_update', onUpdate)
 
     //an update is now no longer significant
-    emitter.on('_remove', function (update) {
+    //can clean it from the database,
+    //this isn't to save space so much as it is to
+    //save time on future reads.
+    scuttlebutt.on('_remove', function (update) {
       var ts = update[1], id = update[2]
-      deleteBatch (id, doc_id, ts)
+      deleteBatch (id, key, ts)
     })
 
-    return emitter
+    return scuttlebutt
   }
 
   dbO.createStream = function () {
@@ -224,6 +241,7 @@ module.exports = function (db, id, schema) {
     })
     //clean up
     function onClose () { mx.end() }
+
     db.once('close', onClose)
     mx.once('close', function () { db.removeListener('close', onClose) })
 
@@ -310,7 +328,7 @@ module.exports = function (db, id, schema) {
           started ++
           var _opts = {
             start: [id, clock[id]].join(sep),
-            end  :  [id, '\xff'].join(sep),
+            end  : [id, '\xff'   ].join(sep),
             tail : opts.tail
           }
           //TODO, merge stream that efficiently handles back pressure
