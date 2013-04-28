@@ -47,6 +47,9 @@ level_scuttlebutt(sbDb, udid, function (name) {
 sbDb.open(name, function (err, model) {
   model.on('change:key', console.log) //...
   model.set('key', value)
+  
+  // when you're done get rid of it
+  model.dispose()
 })
 
 //the toJSON values are stored in the db,
