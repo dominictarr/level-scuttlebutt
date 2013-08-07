@@ -138,12 +138,6 @@ module.exports = function (db, id, schema) {
       key = scuttlebutt.name
     }
 
-    //*************************************
-    //*TODO: replace this with pull-level *
-    //*there is a bug in liveStream.      *
-    //*(order is not gaurenteed if there  *
-    //*   are live updates)               *
-    //*************************************
     var stream = LiveStream(localDb, {
           start: [key,   0].join(sep),
           end  : [key, '~'].join(sep)
