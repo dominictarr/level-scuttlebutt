@@ -1,5 +1,5 @@
 
-var levelup     = require('levelup')
+var level       = require('level-test')()
 var Model       = require('scuttlebutt/model')
 var assert      = require('assert')
 var rimraf      = require('rimraf')
@@ -9,69 +9,63 @@ var SubLevel    = require('level-sublevel')
 
 require('tape')('scuttlebutt: map-reduce', function (t) {
 
-  rimraf('/tmp/level-scuttlebutt-example', function () {
-    levelup('/tmp/level-scuttlebutt-example', 
-      {createIfMissing: true}, function (err, db) {
+  var db = SubLevel(level('level-scuttlebutt-example'))
 
-      SubLevel(db)
-  
-      Scuttlebutt(db, 'THIS', {
-        test: function () {
-          return new Model()
+  Scuttlebutt(db, 'THIS', {
+    test: function () {
+      return new Model()
+    }
+  })
+
+  var mapDb = 
+  MapReduce(db, 'test',
+    function (key, model, emit) {
+      model = JSON.parse(model)
+      if(!model) return
+      emit('square', Math.pow(Number(model.number), 2))
+      emit('cube', Math.pow(Number(model.number), 3))
+    },
+    function (sum, n) {
+      return Number(sum) + Number(n)
+    },
+    0)
+
+  'abcde'.split('').forEach(function (e, i) {
+    db.scuttlebutt.open('test-'+e, false, function (err, t) {
+      t.set('number', i)
+      setTimeout(function () {
+        var l = 10
+        var int = setInterval(function () {
+          t.set('number', i * 2 * l)
+          if(!--l) {
+            clearInterval(int)
+          t.dispose()
         }
-      })
-
-      var mapDb = 
-      MapReduce(db, 'test',
-        function (key, model, emit) {
-          model = JSON.parse(model)
-          if(!model) return
-          emit('square', Math.pow(Number(model.number), 2))
-          emit('cube', Math.pow(Number(model.number), 3))
-        },
-        function (sum, n) {
-          return Number(sum) + Number(n)
-        },
-        0)
-
-      'abcde'.split('').forEach(function (e, i) {
-        db.scuttlebutt.open('test-'+e, false, function (err, t) {
-          t.set('number', i)
-          setTimeout(function () {
-            var l = 10
-            var int = setInterval(function () {
-              t.set('number', i * 2 * l)
-              if(!--l) {
-                clearInterval(int)
-              t.dispose()
-            }
-            }, 200)
-      
-          }, 1000)
-        })
-      })
-
-      var sq, cu
-
-      mapDb.on('reduce', function (group, sum) {
-        console.log('reduce->', group, sum)
-        try {
-          assert.deepEqual([['square'], 120], [group, sum])
-          console.log('sq')
-          sq = true
-          t.ok(true, "eventually ['square']: 120")
-        } catch (_) { }
-
-        try {
-          assert.deepEqual([['cube'], 800], [group, sum])
-          console.log('cu')
-          cu = true
-          t.ok(true, "eventually ['cube']: 800")
-        } catch (_) { }
-
-        if(sq && cu)
-          t.end()
-      })
+        }, 200)
+  
+      }, 1000)
     })
+  })
+
+  var sq, cu
+
+  mapDb.on('reduce', function (group, sum) {
+    console.log('reduce->', group, sum)
+    try {
+      assert.deepEqual([['square'], 120], [group, sum])
+      console.log('sq')
+      sq = true
+      t.ok(true, "eventually ['square']: 120")
+    } catch (_) { }
+
+    try {
+      assert.deepEqual([['cube'], 800], [group, sum])
+      console.log('cu')
+      cu = true
+      t.ok(true, "eventually ['cube']: 800")
+    } catch (_) { }
+
+    if(sq && cu)
+      t.end()
   })
 })

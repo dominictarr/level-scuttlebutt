@@ -1,25 +1,15 @@
-require('tape')('test', function (t) {
 
-var levelup = require('levelup')
+var level    = require('level-test')()
 var SubLevel = require('level-sublevel')
-var rimraf  = require('rimraf')
-var delay   = require('delay-stream')
-var Model   = require('scuttlebutt/model')
-//var Opener  = require('../lib/db-opener')
+var rimraf   = require('rimraf')
+var delay    = require('delay-stream')
+var Model    = require('scuttlebutt/model')
+var tape     = require('tape')  
 
-function create(path, cb) {
-  rimraf(path, function (err) {
-    if(err) return callback(err)
-    levelup(path, {createIfMissing: true}, function (err, db) {
-      if(err) throw err
-      cb(null, SubLevel(db))
-    })
-  })
-}
 
-var A, B
+tape('test', function (t) {
 
-create('/tmp/level-scuttlebutt-test-A', function (err, db) {
+  var db = SubLevel(level('level-scuttlebutt-test-A'))
 
   require('../')(db, 'test1', {
     test: function () {
@@ -48,7 +38,5 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
       t.end()
     })
   })
-
-})
 
 })

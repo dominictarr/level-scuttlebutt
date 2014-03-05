@@ -1,8 +1,5 @@
-require('tape')('test', function (t) {
-
-var levelup   = require('levelup')
+var level     = require('level-test')()
 var SubLevel  = require('level-sublevel')
-var rimraf    = require('rimraf')
 var delay     = require('delay-stream')
 var Model     = require('scuttlebutt/model')
 var LevelScuttlebutt
@@ -10,20 +7,13 @@ var LevelScuttlebutt
 var MapReduce = require('map-reduce')
 var Client    = require('../client')
 var mac       = require('macgyver')().autoValidate()
+var tape      = require('tape')
 
-function create(path, cb) {
-  rimraf(path, function (err) {
-    if(err) return callback(err)
-    levelup(path, {createIfMissing: true}, function (err, db) {
-      if(err) throw err
-      cb(null, SubLevel(db))
-    })
-  })
-}
+tape('test', function (t) {
 
-var A, B
+  var A, B
 
-create('/tmp/level-scuttlebutt-test-A', function (err, db) {
+  var db = SubLevel(level('level-scuttlebutt-test-A'))
 
   var schema = {
     test: function () {
@@ -96,7 +86,5 @@ create('/tmp/level-scuttlebutt-test-A', function (err, db) {
   var rs = remote.createStream()
 
   ls.pipe(rs).pipe(ls)
-
-})
 
 })
