@@ -45,15 +45,19 @@ module.exports = function (db, id, schema) {
   var _batch = [], queued = false
 
   function save() {
-    if(!queued)
+    if(!queued) {
       process.nextTick(function () {
-        db.batch(_batch, function (err) {
-          if(err) return db.emit('error', err)
-          db.emit('drain')
-        })
-        queued = false
+        var batch = _batch
         _batch = []
+        db.batch(batch, function (err) {
+          if(err) return db.emit('error', err)
+
+          queued = false
+          if(!_batch.length) db.emit('drain')
+          else               save()
+        })
       })
+    }
     queued = true
   }
 
