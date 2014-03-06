@@ -18,13 +18,14 @@
     "map-reduce": "~5.1.0"
   },
   "devDependencies": {
-    "level-test": "~1.6.1",
-    "rimraf": "~2.0.2",
-    "tape": "~2",
-    "delay-stream": "~0.0.1",
-    "scuttlebutt": "~5.5",
-    "macgyver": "~1.10.1",
-    "level-sublevel": ">=4.6 <6"
+    "level-test": "^1.6.2",
+    "rimraf": "^2.0.2",
+    "tape": "^2",
+    "delay-stream": "^0.0.1",
+    "scuttlebutt": "^5.5",
+    "macgyver": "^1.10.1",
+    "level-sublevel": "^5.2.0",
+    "crdt": "^3.6.2"
   },
   "scripts": {
     "test": "set -e; for t in test/*.js; do node $t; done"
