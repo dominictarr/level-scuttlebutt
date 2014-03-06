@@ -15,6 +15,13 @@ var A, B
       }
     })
 
+    db.sublevel('sb')
+      .post(function (op) {
+        console.error(op)
+        if(undefined === op.value && op.type !== 'del')
+          throw new Error('value is undefined')
+      })
+
     db.scuttlebutt('test1', function (err, emitter) {
       var letters = "ABCDEFGHIJK"
       var l = 5
@@ -28,8 +35,8 @@ var A, B
   }
 
 
-  randomData(A = SubLevel(level('level-scuttlebutt-test-A')), 'A', next)
-  randomData(B = SubLevel(level('level-scuttlebutt-test-B')), 'B', next)
+  randomData(A = SubLevel(level('level-scuttlebutt-test-A', {encoding: 'utf8'})), 'A', next)
+  randomData(B = SubLevel(level('level-scuttlebutt-test-B'), {encoding: 'utf8'}), 'B', next)
 
   var z = 2
 
