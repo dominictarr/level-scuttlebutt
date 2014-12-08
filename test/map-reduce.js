@@ -2,7 +2,6 @@
 var level       = require('level-test')()
 var Model       = require('scuttlebutt/model')
 var assert      = require('assert')
-var rimraf      = require('rimraf')
 var MapReduce   = require('map-reduce')
 var Scuttlebutt = require('..')
 var SubLevel    = require('level-sublevel')
@@ -17,7 +16,7 @@ require('tape')('scuttlebutt: map-reduce', function (t) {
     }
   })
 
-  var mapDb = 
+  var mapDb =
   MapReduce(db, 'test',
     function (key, model, emit) {
       model = JSON.parse(model)
@@ -42,12 +41,12 @@ require('tape')('scuttlebutt: map-reduce', function (t) {
           t.dispose()
         }
         }, 200)
-  
+
       }, 1000)
     })
   })
 
-  var sq, cu
+  var sq, cu, hasEnded
 
   mapDb.on('reduce', function (group, sum) {
     console.log('reduce->', group, sum)
@@ -65,7 +64,9 @@ require('tape')('scuttlebutt: map-reduce', function (t) {
       t.ok(true, "eventually ['cube']: 800")
     } catch (_) { }
 
-    if(sq && cu)
+    if(sq && cu && !hasEnded) {
+      hasEnded = true
       t.end()
+    }
   })
 })
